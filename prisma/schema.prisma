@@ -15,9 +15,9 @@ datasource db {
 }
 
 enum Role {
-  USER
-  ADMIN
-  SUPER_ADMIN
+  user
+  admin
+  superAdmin
 }
 
 model User {
@@ -25,7 +25,7 @@ model User {
   email     String   @unique
   password  String
   name      String?
-  role      Role     @default(USER)
+  role      Role     @default(user)
   phone     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
