@@ -4,6 +4,7 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -22,7 +23,8 @@ export class AuthController {
   }
 
   @Post('register')
-  register(@Body(ValidationPipe) createUserDto: CreateUserDto) {
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  register(@Body() createUserDto: CreateUserDto) {
     return this.authService.register(createUserDto);
   }
 }
