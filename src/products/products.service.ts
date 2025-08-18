@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
-import { CreateProductDto } from './create-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { FileUploadService } from 'src/common/services/file-upload.service';
 
 @Injectable()
@@ -65,8 +65,9 @@ export class ProductsService {
       brand,
     } = createProductDto;
 
-    // Generate slug from title
-    const slug = this.generateSlug(title);
+    // Generate a unique slug from title
+    const baseSlug = this.generateSlug(title);
+    const slug = await this.getUniqueSlug(baseSlug);
 
     // Get user ID from request
     const userId = req.user?.id;
@@ -91,15 +92,41 @@ export class ProductsService {
 
     // Handle images if provided
     if (images && images.length > 0) {
-      const imageData = images.map((image, index) => ({
-        productId: product.id,
-        imageUrl: this.fileUploadService.getImageUrl(image.filename),
-        order: index,
-      }));
+      console.log('Images received:', images);
+      console.log(
+        'Image details:',
+        images.map((img) => ({
+          fieldname: img.fieldname,
+          originalname: img.originalname,
+          filename: img.filename,
+          mimetype: img.mimetype,
+          size: img.size,
+        })),
+      );
+
+      const imageData = images.map((image, index) => {
+        if (!image.filename) {
+          console.error(`Image ${index} has no filename:`, image);
+          throw new Error(`Image ${index} was not uploaded properly`);
+        }
+
+        const imageUrl = this.fileUploadService.getImageUrl(image.filename);
+        console.log(`Image ${index} URL:`, imageUrl);
+
+        return {
+          productId: product.id,
+          imageUrl,
+          order: index,
+        };
+      });
+
+      console.log('Image data to save:', imageData);
 
       await this.databaseService.productImage.createMany({
         data: imageData,
       });
+    } else {
+      console.log('No images provided');
     }
 
     // Return created product with images
@@ -126,5 +153,28 @@ export class ProductsService {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+  }
+
+  private async getUniqueSlug(baseSlug: string): Promise<string> {
+    // Find existing slugs that start with the base slug
+    const existing = await this.databaseService.product.findMany({
+      where: { slug: { startsWith: baseSlug } },
+      select: { slug: true },
+    });
+
+    if (existing.length === 0) return baseSlug;
+
+    const exactExists = existing.some((e) => e.slug === baseSlug);
+    if (!exactExists) return baseSlug;
+
+    let maxSuffix = 0;
+    for (const { slug } of existing) {
+      if (slug.startsWith(baseSlug + '-')) {
+        const rest = slug.slice(baseSlug.length + 1);
+        const n = parseInt(rest, 10);
+        if (!isNaN(n)) maxSuffix = Math.max(maxSuffix, n);
+      }
+    }
+    return `${baseSlug}-${maxSuffix + 1}`;
   }
 }

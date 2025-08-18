@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
-import { CreateProductDto } from './create-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { FileUploadService } from 'src/common/services/file-upload.service';
 
@@ -44,7 +44,6 @@ export class ProductsController {
   @Post('create')
   @UseGuards(JwtGuard)
   @UseInterceptors(FilesInterceptor('images', 5))
-  @UsePipes(new ValidationPipe({ whitelist: true }))
   createProduct(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() images: any[],

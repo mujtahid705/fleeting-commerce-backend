@@ -1,12 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { existsSync, mkdirSync } from 'fs';
 
 @Injectable()
 export class FileUploadService implements OnModuleInit {
-  private readonly uploadPath = './uploads/products';
+  private readonly uploadPath = join(process.cwd(), 'uploads', 'products');
 
   onModuleInit() {
     // Ensure upload directory exists
