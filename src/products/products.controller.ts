@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -36,7 +37,7 @@ export class ProductsController {
 
   // Get single product by id
   @Get(':id')
-  findOneProduct(@Param('id') id: string) {
+  findOneProduct(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.productsService.findOne(id);
   }
 
@@ -51,4 +52,6 @@ export class ProductsController {
   ) {
     return this.productsService.create(createProductDto, images, req);
   }
+
+  // Update Product
 }

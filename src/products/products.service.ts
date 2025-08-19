@@ -36,21 +36,27 @@ export class ProductsService {
 
   // Find single product by id
   async findOne(id: string) {
-    const product = await this.databaseService.product.findUnique({
-      where: { id: id },
-      include: {
-        images: {
-          where: { isActive: true },
-          orderBy: { order: 'asc' },
+    try {
+      const product = await this.databaseService.product.findUnique({
+        where: { id },
+        include: {
+          images: {
+            where: { isActive: true },
+            orderBy: { order: 'asc' },
+          },
+          category: true,
+          subCategory: true,
         },
-        category: true,
-        subCategory: true,
-      },
-    });
+      });
 
-    if (!product) throw new NotFoundException('Product not found!');
+      if (!product) throw new NotFoundException('Product not found');
 
-    return { message: 'Product fetched successfully', data: product };
+      return { message: 'Product fetched successfully', data: product };
+    } catch (err) {
+      // Re-throw NotFound; wrap Prisma-style errors to avoid leaking internals
+      if (err instanceof NotFoundException) throw err;
+      throw new NotFoundException('Product not found');
+    }
   }
 
   // Create new product
@@ -92,18 +98,6 @@ export class ProductsService {
 
     // Handle images if provided
     if (images && images.length > 0) {
-      console.log('Images received:', images);
-      console.log(
-        'Image details:',
-        images.map((img) => ({
-          fieldname: img.fieldname,
-          originalname: img.originalname,
-          filename: img.filename,
-          mimetype: img.mimetype,
-          size: img.size,
-        })),
-      );
-
       const imageData = images.map((image, index) => {
         if (!image.filename) {
           console.error(`Image ${index} has no filename:`, image);
@@ -111,7 +105,6 @@ export class ProductsService {
         }
 
         const imageUrl = this.fileUploadService.getImageUrl(image.filename);
-        console.log(`Image ${index} URL:`, imageUrl);
 
         return {
           productId: product.id,
@@ -120,13 +113,9 @@ export class ProductsService {
         };
       });
 
-      console.log('Image data to save:', imageData);
-
       await this.databaseService.productImage.createMany({
         data: imageData,
       });
-    } else {
-      console.log('No images provided');
     }
 
     // Return created product with images
