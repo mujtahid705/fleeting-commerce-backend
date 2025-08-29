@@ -30,32 +30,32 @@ model User {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   products Product[]
 }
 
 model Product {
-  id          String   @id @default(uuid())
-  title       String
-  slug        String   @unique
-  description String?
-  price       Float
-  stock       Int
+  id            String   @id @default(uuid())
+  title         String
+  slug          String   @unique
+  description   String?
+  price         Float
+  stock         Int
   categoryId    Int
   subCategoryId Int?
-  createdBy   String 
-  brand       String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  createdBy     String
+  brand         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   // Relations
-  creator   User     @relation(fields: [createdBy], references: [id])
-  category  Category @relation(fields: [categoryId], references: [id])
-  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
-  images    ProductImage[]
-  
+  creator     User           @relation(fields: [createdBy], references: [id])
+  category    Category       @relation(fields: [categoryId], references: [id])
+  subCategory SubCategory?   @relation(fields: [subCategoryId], references: [id])
+  images      ProductImage[]
+
   @@index([createdBy])
 }
 
@@ -67,36 +67,36 @@ model ProductImage {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
+
   @@index([productId])
 }
 
 model Category {
-  id        Int   @id @default(autoincrement())
-  name      String
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
   slug      String   @unique
-  isActive    Boolean  @default(true)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  products Product[]
+  products      Product[]
   subCategories SubCategory[]
 }
 
 model SubCategory {
-  id        Int   @id @default(autoincrement())
-  name      String
+  id         Int      @id @default(autoincrement())
+  name       String
   categoryId Int
-  slug      String   @unique
-  isActive    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  slug       String   @unique
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   products Product[]
-  category Category @relation(fields: [categoryId], references: [id])
+  category Category  @relation(fields: [categoryId], references: [id])
 }

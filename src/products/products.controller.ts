@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -18,6 +20,9 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { FileUploadService } from 'src/common/services/file-upload.service';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -43,8 +48,10 @@ export class ProductsController {
 
   // Create new product
   @Post('create')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
   @UseInterceptors(FilesInterceptor('images', 5))
+  @UsePipes(new ValidationPipe({ transform: true }))
   createProduct(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() images: any[],
@@ -54,4 +61,25 @@ export class ProductsController {
   }
 
   // Update Product
+  @Patch(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
+  @UseInterceptors(FilesInterceptor('images', 5))
+  @UsePipes(new ValidationPipe({ transform: true }))
+  updateProduct(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() updateProductDto: UpdateProductDto,
+    @UploadedFiles() images: any[],
+    @Req() req: any,
+  ) {
+    return this.productsService.update(id, updateProductDto, images, req);
+  }
+
+  // Delete Product
+  @Delete(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
+  deleteProduct(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.productsService.delete(id);
+  }
 }

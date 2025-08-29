@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FileUploadService } from 'src/common/services/file-upload.service';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -165,5 +166,88 @@ export class ProductsService {
       }
     }
     return `${baseSlug}-${maxSuffix + 1}`;
+  }
+
+  // Update Products
+  async update(
+    id: string,
+    updateProductDto: UpdateProductDto,
+    images: any[],
+    req: any,
+  ) {
+    const existingProduct = await this.databaseService.product.findUnique({
+      where: { id },
+      include: { images: true },
+    });
+
+    if (!existingProduct) throw new NotFoundException('Product not found');
+
+    const dataToUpdate: any = { ...updateProductDto };
+
+    // If title is being changed, potentially regenerate slug uniquely
+    if (
+      updateProductDto.title &&
+      updateProductDto.title !== existingProduct.title
+    ) {
+      const newBase = this.generateSlug(updateProductDto.title);
+      dataToUpdate.slug = await this.getUniqueSlug(newBase);
+    }
+
+    const updatedProduct = await this.databaseService.product.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+
+    if (images && images.length > 0) {
+      // Soft-deactivate existing images
+      await this.databaseService.productImage.updateMany({
+        where: { productId: id, isActive: true },
+        data: { isActive: false },
+      });
+
+      const newImageData = images.map((image, index) => {
+        if (!image.filename) {
+          throw new Error(`Image ${index} was not uploaded properly`);
+        }
+        return {
+          productId: id,
+          imageUrl: this.fileUploadService.getImageUrl(image.filename),
+          order: index,
+        };
+      });
+
+      await this.databaseService.productImage.createMany({
+        data: newImageData,
+      });
+    }
+
+    const fresh = await this.databaseService.product.findUnique({
+      where: { id },
+      include: {
+        images: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+        },
+        category: true,
+        subCategory: true,
+      },
+    });
+
+    return { message: 'Product updated successfully', data: fresh };
+  }
+
+  // Delete Product
+  async delete(id: string) {
+    const product = await this.databaseService.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) throw new NotFoundException('Product not found!');
+
+    const deletedProduct = await this.databaseService.product.delete({
+      where: { id },
+    });
+
+    return { message: 'Product deleted successfully', data: deletedProduct };
   }
 }
