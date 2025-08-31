@@ -37,17 +37,17 @@ export class CategoriesController {
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('admin', 'superAdmin')
   updateCategory(
-    @Param('id') id: number,
+    @Param('id') id: string,
     @Body() updateCategoryDto: CreateCategoryDto,
   ) {
-    return this.categoriesService.update(id, updateCategoryDto);
+    return this.categoriesService.update(parseInt(id, 10), updateCategoryDto);
   }
 
   // Delete category
   @Delete('delete/:id')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('admin', 'superAdmin')
-  deleteCategory(@Param('id') id: number) {
-    return this.categoriesService.delete(id);
+  deleteCategory(@Param('id') id: string) {
+    return this.categoriesService.delete(parseInt(id, 10));
   }
 }

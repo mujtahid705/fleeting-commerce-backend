@@ -30,6 +30,16 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = parseInt(process.env.PORT ?? '3000', 10);
+  const host = process.env.HOST || '0.0.0.0';
+  await app.listen(port, host);
 }
 bootstrap();
+
+// Global process-level error visibility
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});

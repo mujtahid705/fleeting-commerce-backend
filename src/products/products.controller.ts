@@ -65,7 +65,6 @@ export class ProductsController {
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('admin', 'superAdmin')
   @UseInterceptors(FilesInterceptor('images', 5))
-  @UsePipes(new ValidationPipe({ transform: true }))
   updateProduct(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() updateProductDto: UpdateProductDto,

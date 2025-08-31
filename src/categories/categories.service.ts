@@ -26,7 +26,7 @@ export class CategoriesService {
 
     const slug = await this.getUniqueSlug(createCategoryDto.name);
 
-    const newCategory = this.databaseService.category.create({
+    const newCategory = await this.databaseService.category.create({
       data: { name: createCategoryDto.name, slug },
     });
 
@@ -35,6 +35,10 @@ export class CategoriesService {
 
   // Update category
   async update(id: number, updateCategoryDto: CreateCategoryDto) {
+    if (!id || isNaN(id)) {
+      throw new NotFoundException('Invalid category ID');
+    }
+
     const category = await this.databaseService.category.findUnique({
       where: { id },
     });
@@ -52,6 +56,10 @@ export class CategoriesService {
 
   // Delete category
   async delete(id: number) {
+    if (!id || isNaN(id)) {
+      throw new NotFoundException('Invalid category ID');
+    }
+
     const category = await this.databaseService.category.findUnique({
       where: { id },
     });
@@ -66,25 +74,31 @@ export class CategoriesService {
   }
 
   // Generate unique slug
-  private async getUniqueSlug(name: string) {
+  private async getUniqueSlug(name: string): Promise<string> {
     const baseSlug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    let count = 0;
-    let slugNew = '';
-    while (true) {
-      const existingCategory = this.databaseService.category.findUnique({
-        where: { slug: baseSlug },
-      });
+    // Check if base slug is available
+    const existing = await this.databaseService.category.findMany({
+      where: { slug: { startsWith: baseSlug } },
+      select: { slug: true },
+    });
 
-      count += 1;
-      if (!existingCategory) {
-        slugNew = count === 0 ? baseSlug : `${baseSlug}-${count}`;
-        break;
+    if (existing.length === 0) return baseSlug;
+
+    const exactExists = existing.some((e) => e.slug === baseSlug);
+    if (!exactExists) return baseSlug;
+
+    let maxSuffix = 0;
+    for (const { slug } of existing) {
+      if (slug.startsWith(baseSlug + '-')) {
+        const rest = slug.slice(baseSlug.length + 1);
+        const n = parseInt(rest, 10);
+        if (!isNaN(n)) maxSuffix = Math.max(maxSuffix, n);
       }
     }
-    return slugNew;
+    return `${baseSlug}-${maxSuffix + 1}`;
   }
 }
