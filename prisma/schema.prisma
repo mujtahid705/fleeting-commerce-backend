@@ -14,6 +14,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Users Module
 enum Role {
   user
   admin
@@ -33,8 +34,10 @@ model User {
 
   // Relations
   products Product[]
+  orders   Order[]
 }
 
+// Products Module
 model Product {
   id            String   @id @default(uuid())
   title         String
@@ -55,6 +58,7 @@ model Product {
   category    Category       @relation(fields: [categoryId], references: [id])
   subCategory SubCategory?   @relation(fields: [subCategoryId], references: [id])
   images      ProductImage[]
+  order_items Order_Item[]
 
   @@index([createdBy])
 }
@@ -74,6 +78,7 @@ model ProductImage {
   @@index([productId])
 }
 
+// Category & Subcategory
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -99,4 +104,40 @@ model SubCategory {
   // Relations
   products Product[]
   category Category  @relation(fields: [categoryId], references: [id])
+}
+
+// Order Module
+enum Status {
+  pending
+  processing
+  shipped
+  delivered
+  cancelled
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  totalAmount Float
+  status      Status   @default(pending)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  order_items Order_Item[]
+  user        User         @relation(fields: [userId], references: [id])
+}
+
+model Order_Item {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  productId String
+  quantity  Int
+  unitPrice Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 }
