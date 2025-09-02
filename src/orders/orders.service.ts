@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -20,7 +24,11 @@ export class OrdersService {
   }
 
   // Get order by Id
-  async findById(userId: string) {
+  async findById(userId: string, req: any) {
+    if (req.user.role === 'user' && userId !== req.user.id) {
+      throw new ForbiddenException('You are not allowed to access this order');
+    }
+
     const order = await this.databaseService.order.findMany({
       where: { userId: userId },
       include: {
@@ -61,13 +69,22 @@ export class OrdersService {
   }
 
   //   Update Order Status
-  async updateStatus(id: number, updateStatusDto: UpdateStatusDto) {
+  async updateStatus(id: number, updateStatusDto: UpdateStatusDto, req: any) {
     const order = await this.databaseService.order.findUnique({
       where: { id },
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    if (
+      req.user.role === 'user' &&
+      order.userId !== req.user.id &&
+      order.status !== 'pending' &&
+      updateStatusDto.status !== 'cancelled'
+    ) {
+      throw new ForbiddenException('You are not allowed to update this order');
     }
 
     const updatedOrder = await this.databaseService.order.update({

@@ -31,25 +31,27 @@ export class OrdersController {
   // Get order by userId
   @Get(':id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
-  findOrderById(@Param('id', ParseUUIDPipe) userId: string) {
-    return this.ordersService.findById(userId);
+  @Roles('admin', 'superAdmin', 'user')
+  findOrderById(@Param('id', ParseUUIDPipe) userId: string, @Req() req: any) {
+    return this.ordersService.findById(userId, req);
   }
 
   // Post order
   @Post('create')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin', 'user')
   createOrder(@Body() createOrderDto: CreateOrderDto, @Req() req: any) {
     return this.ordersService.create(createOrderDto, req);
   }
 
   // Update Status
   @Patch('update/status/:id')
+  @UseGuards(JwtGuard)
   updateStatus(
     @Param('id') id: number,
     @Body() updateStatusDto: UpdateStatusDto,
+    @Req() req: any,
   ) {
-    return this.ordersService.updateStatus(id, updateStatusDto);
+    return this.ordersService.updateStatus(id, updateStatusDto, req);
   }
 }

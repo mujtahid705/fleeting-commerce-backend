@@ -12,7 +12,27 @@ export class CategoriesService {
 
   // Get all categories
   async findAll() {
-    return this.databaseService.category.findMany();
+    const categories = await this.databaseService.category.findMany({
+      include: {
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
+    });
+
+    const data = categories.map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      isActive: item.isActive,
+      productsCount: item._count.products,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    return data;
   }
 
   // Create category
