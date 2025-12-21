@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
@@ -28,8 +29,11 @@ export class CategoriesController {
   @Post('create')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('admin', 'superAdmin')
-  createCategory(@Body() createCategoryDto: CreateCategoryDto) {
-    return this.categoriesService.create(createCategoryDto);
+  createCategory(
+    @Body() createCategoryDto: CreateCategoryDto,
+    @Req() req: any,
+  ) {
+    return this.categoriesService.create(createCategoryDto, req.user.tenantId);
   }
 
   // Update category

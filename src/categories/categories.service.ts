@@ -36,7 +36,7 @@ export class CategoriesService {
   }
 
   // Create category
-  async create(createCategoryDto: CreateCategoryDto) {
+  async create(createCategoryDto: CreateCategoryDto, tenantId: string) {
     const existingCategory = await this.databaseService.category.findUnique({
       where: { name: createCategoryDto.name },
     });
@@ -47,7 +47,7 @@ export class CategoriesService {
     const slug = await this.getUniqueSlug(createCategoryDto.name);
 
     const newCategory = await this.databaseService.category.create({
-      data: { name: createCategoryDto.name, slug },
+      data: { name: createCategoryDto.name, slug, tenantId },
     });
 
     return { message: 'Category created successfully!', data: newCategory };

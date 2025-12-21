@@ -49,6 +49,7 @@ export class OrdersService {
     const newOrder = await this.databaseService.order.create({
       data: {
         userId: req.user.id,
+        tenantId: req.user.tenantId,
         totalAmount: createOrderDto.totalAmount,
       },
     });

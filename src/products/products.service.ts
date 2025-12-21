@@ -76,10 +76,10 @@ export class ProductsService {
     const baseSlug = this.generateSlug(title);
     const slug = await this.getUniqueSlug(baseSlug);
 
-    // Get user ID from request
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new Error('User not authenticated');
+    // Get tenant ID from request
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant not found for user');
     }
 
     // Create product
@@ -93,7 +93,7 @@ export class ProductsService {
         categoryId,
         subCategoryId,
         brand,
-        createdBy: userId,
+        tenantId,
       },
     });
 
