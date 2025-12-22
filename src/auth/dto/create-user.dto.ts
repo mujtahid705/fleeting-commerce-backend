@@ -38,6 +38,17 @@ export class CreateTenantAdminDto extends BaseUserDto {
   @IsString()
   @IsNotEmpty()
   tenantId: string;
+
+  role?: 'TENANT_ADMIN';
+}
+
+export class CreateTenantAdminWithTenantDto extends BaseUserDto {
+  // Tenant admin must be assigned to a tenant
+  @IsString()
+  @IsNotEmpty()
+  tenantName: string;
+
+  role?: 'TENANT_ADMIN';
 }
 
 export class CreateSuperAdminDto extends BaseUserDto {

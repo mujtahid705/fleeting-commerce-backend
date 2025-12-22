@@ -14,6 +14,7 @@ import {
   CreateCustomerDto,
   CreateSuperAdminDto,
   CreateTenantAdminDto,
+  CreateTenantAdminWithTenantDto,
 } from './dto/create-user.dto';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtGuard } from './guards/jwt.guard';
@@ -23,6 +24,7 @@ import { Roles } from './decorators/roles.decorator';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // Login
   @Post('login')
   @UseGuards(LocalAuthGuard)
   login(@Req() req: Request) {
@@ -35,6 +37,7 @@ export class AuthController {
   //   return this.authService.register(createUserDto);
   // }
 
+  // Register Super Admin
   @Post('register/super-admin')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('SUPER_ADMIN')
@@ -43,12 +46,25 @@ export class AuthController {
     return this.authService.createSuperAdmin(createSuperAdminDto);
   }
 
+  // Register Tenant Admin
   @Post('register/tenant-admin')
   @UsePipes(new ValidationPipe({ whitelist: true }))
   registerTenantAdmin(@Body() createTenantAdminDto: CreateTenantAdminDto) {
     return this.authService.createTenantAdmin(createTenantAdminDto);
   }
 
+  // Register Tenant Admin with New Tenant
+  @Post('register/tenant-admin-with-tenant')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  registerTenantAdminWithTenant(
+    @Body() createTenantAdminWithTenantDto: CreateTenantAdminWithTenantDto,
+  ) {
+    return this.authService.createTenantAdminWithTenant(
+      createTenantAdminWithTenantDto,
+    );
+  }
+
+  // Register Customer
   @Post('register/customer')
   @UsePipes(new ValidationPipe({ whitelist: true }))
   registerCustomer(@Body() createCustomerDto: CreateCustomerDto) {

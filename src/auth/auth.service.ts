@@ -11,6 +11,7 @@ import {
   CreateCustomerDto,
   CreateSuperAdminDto,
   CreateTenantAdminDto,
+  CreateTenantAdminWithTenantDto,
 } from './dto/create-user.dto';
 
 @Injectable()
@@ -51,30 +52,6 @@ export class AuthService {
     };
   }
 
-  // Register new user
-  // async register(createUserDto: CreateUserDto) {
-  //   const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-  //   const existingUser = await this.databaseService.user.findUnique({
-  //     where: { email: createUserDto.email },
-  //   });
-
-  //   if (existingUser)
-  //     throw new BadRequestException('Email has already been taken!');
-
-  //   const user = await this.databaseService.user.create({
-  //     data: {
-  //       name: createUserDto.name,
-  //       email: createUserDto.email,
-  //       password: hashedPassword,
-  //       phone: createUserDto.phone,
-  //       isActive: true,
-  //     },
-  //   });
-
-  //   const { password, ...data } = user;
-  //   return data;
-  // }
-
   // Create customer user
   async createCustomer(createCustomerDto: CreateCustomerDto) {
     const hashedPassword = await bcrypt.hash(createCustomerDto.password, 10);
@@ -84,6 +61,7 @@ export class AuthService {
 
     if (existingUser)
       throw new BadRequestException('Email has already been taken!');
+    console.log(createCustomerDto);
 
     const user = await this.databaseService.user.create({
       data: {
@@ -98,7 +76,7 @@ export class AuthService {
     });
 
     const { password, ...data } = user;
-    return data;
+    return { message: 'Customer created successfully', data };
   }
 
   // Create tenant admin user
@@ -111,20 +89,65 @@ export class AuthService {
     if (existingUser)
       throw new BadRequestException('Email has already been taken!');
 
+    const tenant = await this.databaseService.tenant.findUnique({
+      where: { id: createTenantAdminDto.tenantId },
+    });
+
+    if (!tenant) throw new NotFoundException('Tenant not found!');
+
     const user = await this.databaseService.user.create({
       data: {
         name: createTenantAdminDto.name,
         email: createTenantAdminDto.email,
         password: hashedPassword,
         phone: createTenantAdminDto.phone,
-        isActive: true,
         tenantId: createTenantAdminDto.tenantId,
+        isActive: true,
         role: 'TENANT_ADMIN',
       },
     });
 
     const { password, ...data } = user;
-    return data;
+    return { message: 'Tenant admin created successfully', data };
+  }
+
+  // Create tenant admin with new tenant
+  async createTenantAdminWithTenant(
+    createTenantAdminWithTenant: CreateTenantAdminWithTenantDto,
+  ) {
+    const hashedPassword = await bcrypt.hash(
+      createTenantAdminWithTenant.password,
+      10,
+    );
+    const existingUser = await this.databaseService.user.findUnique({
+      where: { email: createTenantAdminWithTenant.email },
+    });
+
+    if (existingUser)
+      throw new BadRequestException('Email has already been taken!');
+
+    // Create new tenant
+    const tenant = await this.databaseService.tenant.create({
+      data: {
+        name: createTenantAdminWithTenant.tenantName,
+      },
+    });
+
+    // Create tenant admin user
+    const user = await this.databaseService.user.create({
+      data: {
+        name: createTenantAdminWithTenant.name,
+        email: createTenantAdminWithTenant.email,
+        password: hashedPassword,
+        phone: createTenantAdminWithTenant.phone,
+        tenantId: tenant.id,
+        isActive: true,
+        role: 'TENANT_ADMIN',
+      },
+    });
+
+    const { password, ...data } = user;
+    return { message: 'Tenant admin with tenant created successfully', data };
   }
 
   // Create super admin user
@@ -150,6 +173,6 @@ export class AuthService {
     });
 
     const { password, ...data } = user;
-    return data;
+    return { message: 'Super admin created successfully', data };
   }
 }
