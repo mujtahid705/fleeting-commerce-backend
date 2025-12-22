@@ -31,12 +31,6 @@ export class AuthController {
     return this.authService.login(req.user);
   }
 
-  // @Post('register')
-  // @UsePipes(new ValidationPipe({ whitelist: true }))
-  // register(@Body() createUserDto: CreateUserDto) {
-  //   return this.authService.register(createUserDto);
-  // }
-
   // Register Super Admin
   @Post('register/super-admin')
   @UseGuards(JwtGuard, RolesGuard)

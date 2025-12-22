@@ -34,6 +34,7 @@ model Tenant {
   products Product[]
   orders   Order[]
   categories Category[]
+  inventories Inventory[]
 }
 
 model User {
@@ -62,7 +63,7 @@ model Product {
   slug          String   @unique
   description   String?
   price         Float
-  stock         Int
+  totalSold    Int      @default(0)
   categoryId    Int
   subCategoryId Int?
   tenantId     String
@@ -77,6 +78,7 @@ model Product {
   subCategory SubCategory?   @relation(fields: [subCategoryId], references: [id])
   images      ProductImage[]
   order_items Order_Item[]
+  inventory   Inventory[]
 
   @@index([tenantId])
 }
@@ -92,6 +94,22 @@ model ProductImage {
 
   // Relations
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// Inventory Module
+model Inventory {
+  id        String   @id @default(uuid())
+  productId String
+  tenantId  String
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
 
   @@index([productId])
 }

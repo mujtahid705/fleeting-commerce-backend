@@ -62,15 +62,8 @@ export class ProductsService {
 
   // Create new product
   async create(createProductDto: CreateProductDto, images: any[], req: any) {
-    const {
-      title,
-      description,
-      price,
-      stock,
-      categoryId,
-      subCategoryId,
-      brand,
-    } = createProductDto;
+    const { title, description, price, categoryId, subCategoryId, brand } =
+      createProductDto;
 
     // Generate a unique slug from title
     const baseSlug = this.generateSlug(title);
@@ -89,7 +82,6 @@ export class ProductsService {
         slug,
         description,
         price,
-        stock,
         categoryId,
         subCategoryId,
         brand,

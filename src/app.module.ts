@@ -8,6 +8,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { SubcategoriesModule } from './subcategories/subcategories.module';
 import { OrdersModule } from './orders/orders.module';
 import { TenantsModule } from './tenants/tenants.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TenantsModule } from './tenants/tenants.module';
     SubcategoriesModule,
     OrdersModule,
     TenantsModule,
+    InventoryModule,
   ],
   controllers: [],
   providers: [],
