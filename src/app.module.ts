@@ -7,6 +7,7 @@ import { ProductsModule } from './products/products.module';
 import { CategoriesModule } from './categories/categories.module';
 import { SubcategoriesModule } from './subcategories/subcategories.module';
 import { OrdersModule } from './orders/orders.module';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { OrdersModule } from './orders/orders.module';
     CategoriesModule,
     SubcategoriesModule,
     OrdersModule,
+    TenantsModule,
   ],
   controllers: [],
   providers: [],
