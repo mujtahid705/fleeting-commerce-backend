@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AddProductToInventoryDto } from './dto/add-product-inventory.dto';
 import { DatabaseService } from 'src/database/database.service';
 import { UpdateInventoryQuantityDto } from './dto/update-inventory-quantity.dto';
@@ -12,26 +18,34 @@ export class InventoryService {
     addProductToInventory: AddProductToInventoryDto,
     req: any,
   ) {
-    if (addProductToInventory.tenantId !== req.user.tenantId) {
-      throw new UnauthorizedException('Unauthorized tenant.');
-    }
-
     if (addProductToInventory.quantity < 0) {
-      throw new Error('Invalid quantity.');
+      throw new BadRequestException('Invalid quantity.');
     }
 
-    const product = this.databaseService.product.findUnique({
+    const product = await this.databaseService.product.findUnique({
       where: { id: addProductToInventory.productId },
     });
 
     if (!product) {
-      throw new Error('Product not found!');
+      throw new NotFoundException('Product not found!');
     }
 
-    const createdProduct = this.databaseService.inventory.create({
+    if (product.tenantId !== req.user.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
+
+    const inventoryExists = await this.databaseService.inventory.findUnique({
+      where: { productId: addProductToInventory.productId },
+    });
+
+    if (inventoryExists) {
+      throw new ConflictException('Product already exists in inventory!');
+    }
+
+    const createdProduct = await this.databaseService.inventory.create({
       data: {
         productId: addProductToInventory.productId,
-        tenantId: addProductToInventory.tenantId,
+        tenantId: req.user.tenantId,
         quantity: addProductToInventory.quantity,
         addedBy: req.user.id,
       },
@@ -54,7 +68,7 @@ export class InventoryService {
     });
 
     if (!inventoryItem) {
-      throw new Error('Inventory item not found!');
+      throw new NotFoundException('Inventory item not found!');
     }
 
     if (inventoryItem.tenantId !== req.user.tenantId) {
@@ -62,7 +76,7 @@ export class InventoryService {
     }
 
     if (updateInventoryQuantityDto.quantity < 0) {
-      throw new Error('Invalid quantity.');
+      throw new BadRequestException('Invalid quantity.');
     }
 
     const updatedInventory = await this.databaseService.inventory.update({
@@ -83,7 +97,7 @@ export class InventoryService {
     });
 
     if (!inventoryItem) {
-      throw new Error('Inventory item not found!');
+      throw new NotFoundException('Inventory item not found!');
     }
 
     if (inventoryItem.tenantId !== req.user.tenantId) {

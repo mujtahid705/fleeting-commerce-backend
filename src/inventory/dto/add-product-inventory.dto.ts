@@ -8,8 +8,4 @@ export class AddProductToInventoryDto {
   @IsNumber()
   @IsNotEmpty()
   quantity: number;
-
-  @IsString()
-  @IsNotEmpty()
-  tenantId: string;
 }

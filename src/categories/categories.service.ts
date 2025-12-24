@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -11,8 +12,9 @@ export class CategoriesService {
   constructor(private readonly databaseService: DatabaseService) {}
 
   // Get all categories
-  async findAll() {
+  async findAll(req: any) {
     const categories = await this.databaseService.category.findMany({
+      where: { tenantId: req.user?.tenantId },
       include: {
         _count: {
           select: {
@@ -26,13 +28,14 @@ export class CategoriesService {
       id: item.id,
       name: item.name,
       slug: item.slug,
+      tenantId: item.tenantId,
       isActive: item.isActive,
       productsCount: item._count.products,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     }));
 
-    return data;
+    return { message: 'Categories fetched successfully', data };
   }
 
   // Create category
@@ -54,7 +57,7 @@ export class CategoriesService {
   }
 
   // Update category
-  async update(id: number, updateCategoryDto: CreateCategoryDto) {
+  async update(id: number, updateCategoryDto: CreateCategoryDto, req: any) {
     if (!id || isNaN(id)) {
       throw new NotFoundException('Invalid category ID');
     }
@@ -64,6 +67,10 @@ export class CategoriesService {
     });
 
     if (!category) throw new NotFoundException('Category not found');
+
+    if (category.tenantId !== req.user.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
 
     const slug = await this.getUniqueSlug(updateCategoryDto.name);
     const updatedCategory = await this.databaseService.category.update({
@@ -75,7 +82,7 @@ export class CategoriesService {
   }
 
   // Delete category
-  async delete(id: number) {
+  async delete(id: number, req: any) {
     if (!id || isNaN(id)) {
       throw new NotFoundException('Invalid category ID');
     }
@@ -85,6 +92,10 @@ export class CategoriesService {
     });
 
     if (!category) throw new NotFoundException('Category not found');
+
+    if (category.tenantId !== req.user.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
 
     const deletedCategory = await this.databaseService.category.delete({
       where: { id },
