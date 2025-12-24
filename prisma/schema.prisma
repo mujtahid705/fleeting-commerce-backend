@@ -52,6 +52,7 @@ model User {
   // Relations
   orders   Order[]
   tenant   Tenant?  @relation(fields: [tenantId], references: [id])
+  inventory Inventory[]
 
   @@index([tenantId])
 }
@@ -101,15 +102,18 @@ model ProductImage {
 // Inventory Module
 model Inventory {
   id        String   @id @default(uuid())
-  productId String
+  productId String   @unique
   tenantId  String
   quantity  Int
+  addedBy   String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   product Product @relation(fields: [productId], references: [id])
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  user    User    @relation(fields: [addedBy], references: [id])
 
   @@index([productId])
 }

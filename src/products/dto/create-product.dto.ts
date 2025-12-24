@@ -16,10 +16,6 @@ export class CreateProductDto {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value))
-  stock: number;
-
-  @IsNumber()
-  @Transform(({ value }) => parseInt(value))
   categoryId: number;
 
   @IsNumber()
