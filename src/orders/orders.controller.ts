@@ -23,30 +23,31 @@ export class OrdersController {
   // Get all orders
   @Get('all')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
-  findAllOrders() {
-    return this.ordersService.findAll();
+  @Roles('TENANT_ADMIN')
+  findAllOrders(@Req() req: any) {
+    return this.ordersService.findAll(req);
   }
 
   // Get order by userId
   @Get(':id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin', 'user')
+  @Roles('TENANT_ADMIN', 'CUSTOMER')
   findOrderById(@Param('id', ParseUUIDPipe) userId: string, @Req() req: any) {
     return this.ordersService.findById(userId, req);
   }
 
-  // Post order
+  // Create order
   @Post('create')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin', 'user')
+  @Roles('TENANT_ADMIN', 'CUSTOMER')
   createOrder(@Body() createOrderDto: CreateOrderDto, @Req() req: any) {
     return this.ordersService.create(createOrderDto, req);
   }
 
   // Update Status
   @Patch('update/status/:id')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('TENANT_ADMIN', 'CUSTOMER')
   updateStatus(
     @Param('id') id: number,
     @Body() updateStatusDto: UpdateStatusDto,
