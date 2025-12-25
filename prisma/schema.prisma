@@ -16,9 +16,25 @@ datasource db {
 
 // Users Module
 enum Role {
-  user
-  admin
-  superAdmin
+  CUSTOMER
+  TENANT_ADMIN
+  SUPER_ADMIN
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  domain    String?   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users    User[]
+  products Product[]
+  orders   Order[]
+  categories Category[]
+  inventories Inventory[]
 }
 
 model User {
@@ -26,15 +42,19 @@ model User {
   email     String   @unique
   password  String
   name      String?
-  role      Role     @default(user)
+  role      Role     @default(CUSTOMER)
+  tenantId  String?
   phone     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  products Product[]
   orders   Order[]
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id])
+  inventory Inventory[]
+
+  @@index([tenantId])
 }
 
 // Products Module
@@ -44,23 +64,24 @@ model Product {
   slug          String   @unique
   description   String?
   price         Float
-  stock         Int
+  totalSold    Int      @default(0)
   categoryId    Int
   subCategoryId Int?
-  createdBy     String
+  tenantId     String
   brand         String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relations
-  creator     User           @relation(fields: [createdBy], references: [id])
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
   category    Category       @relation(fields: [categoryId], references: [id])
   subCategory SubCategory?   @relation(fields: [subCategoryId], references: [id])
   images      ProductImage[]
   order_items Order_Item[]
+  inventory   Inventory[]
 
-  @@index([createdBy])
+  @@index([tenantId])
 }
 
 model ProductImage {
@@ -78,11 +99,31 @@ model ProductImage {
   @@index([productId])
 }
 
+// Inventory Module
+model Inventory {
+  id        String   @id @default(uuid())
+  productId String   @unique
+  tenantId  String
+  quantity  Int
+  addedBy   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  user    User    @relation(fields: [addedBy], references: [id])
+
+  @@index([productId])
+}
+
 // Category & Subcategory
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   slug      String   @unique
+  tenantId  String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -90,6 +131,7 @@ model Category {
   // Relations
   products      Product[]
   subCategories SubCategory[]
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
 }
 
 model SubCategory {
@@ -118,6 +160,7 @@ enum Status {
 model Order {
   id          Int      @id @default(autoincrement())
   userId      String
+  tenantId    String
   totalAmount Float
   status      Status   @default(pending)
   createdAt   DateTime @default(now())
@@ -126,6 +169,7 @@ model Order {
   // Relations
   order_items Order_Item[]
   user        User         @relation(fields: [userId], references: [id])
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
 }
 
 model Order_Item {
@@ -134,6 +178,7 @@ model Order_Item {
   productId String
   quantity  Int
   unitPrice Float
+  discount  Float   @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

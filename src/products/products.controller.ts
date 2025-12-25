@@ -36,20 +36,24 @@ export class ProductsController {
   findAllProducts(
     @Query('category') categoryId: number,
     @Query('subCategory') subCategoryId: number,
+    @Req() req: any,
   ) {
-    return this.productsService.findAll(categoryId, subCategoryId);
+    return this.productsService.findAll(categoryId, subCategoryId, req);
   }
 
   // Get single product by id
   @Get(':id')
-  findOneProduct(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.productsService.findOne(id);
+  findOneProduct(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
+    return this.productsService.findOne(id, req);
   }
 
   // Create new product
   @Post('create')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('TENANT_ADMIN')
   @UseInterceptors(FilesInterceptor('images', 5))
   @UsePipes(new ValidationPipe({ transform: true }))
   createProduct(
@@ -63,7 +67,7 @@ export class ProductsController {
   // Update Product
   @Patch(':id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('TENANT_ADMIN')
   @UseInterceptors(FilesInterceptor('images', 5))
   updateProduct(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -77,8 +81,11 @@ export class ProductsController {
   // Delete Product
   @Delete(':id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
-  deleteProduct(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.productsService.delete(id);
+  @Roles('TENANT_ADMIN')
+  deleteProduct(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
+    return this.productsService.delete(id, req);
   }
 }

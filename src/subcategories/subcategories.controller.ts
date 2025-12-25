@@ -10,6 +10,7 @@ import {
   UseGuards,
   ValidationPipe,
   UsePipes,
+  Req,
 } from '@nestjs/common';
 import { SubcategoriesService } from './subcategories.service';
 import { CreateSubCategoryDto } from './dto/create-subcategory.dto';
@@ -23,34 +24,38 @@ export class SubcategoriesController {
 
   // Get all subcategories
   @Get('all')
-  findAll(@Query('categoryId') categoryId?: string) {
+  findAll(@Query('categoryId') categoryId?: string, @Req() req?: any) {
     const cid = categoryId ? parseInt(categoryId, 10) : undefined;
-    return this.subcategoriesService.findAll(cid);
+    return this.subcategoriesService.findAll(cid, req);
   }
 
   // Create subcategory
   @Post('create')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('TENANT_ADMIN')
   @UsePipes(new ValidationPipe({ transform: true }))
-  create(@Body() dto: CreateSubCategoryDto) {
-    return this.subcategoriesService.create(dto);
+  create(@Body() dto: CreateSubCategoryDto, @Req() req: any) {
+    return this.subcategoriesService.create(dto, req);
   }
 
   // Update subcategory
   @Patch('update/:id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('TENANT_ADMIN')
   @UsePipes(new ValidationPipe({ transform: true }))
-  update(@Param('id') id: string, @Body() dto: CreateSubCategoryDto) {
-    return this.subcategoriesService.update(parseInt(id, 10), dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: CreateSubCategoryDto,
+    @Req() req: any,
+  ) {
+    return this.subcategoriesService.update(parseInt(id, 10), dto, req);
   }
 
   // Delete subcategory
   @Delete('delete/:id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
-  delete(@Param('id') id: string) {
-    return this.subcategoriesService.delete(parseInt(id, 10));
+  @Roles('TENANT_ADMIN')
+  delete(@Param('id') id: string, @Req() req: any) {
+    return this.subcategoriesService.delete(parseInt(id, 10), req);
   }
 }

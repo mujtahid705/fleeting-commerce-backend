@@ -21,7 +21,7 @@ export class UsersController {
   // get all users
   @Get('all')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('admin', 'superAdmin')
+  @Roles('SUPER_ADMIN')
   getAllUsers(@Req() req: Request & { user: JwtPayload }) {
     return this.usersService.findAll();
   }

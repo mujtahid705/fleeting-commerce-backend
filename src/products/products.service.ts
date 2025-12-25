@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FileUploadService } from 'src/common/services/file-upload.service';
@@ -12,11 +16,12 @@ export class ProductsService {
   ) {}
 
   // Find all products
-  async findAll(categoryId: number, subCategoryId: number) {
+  async findAll(categoryId: number, subCategoryId: number, req: any) {
     const products = await this.databaseService.product.findMany({
       where: {
         ...(categoryId && { categoryId: categoryId }),
         ...(subCategoryId && { subCategoryId: subCategoryId }),
+        tenantId: req.user?.tenantId,
       },
       include: {
         images: {
@@ -36,10 +41,10 @@ export class ProductsService {
   }
 
   // Find single product by id
-  async findOne(id: string) {
+  async findOne(id: string, req: any) {
     try {
       const product = await this.databaseService.product.findUnique({
-        where: { id },
+        where: { id, tenantId: req.user?.tenantId },
         include: {
           images: {
             where: { isActive: true },
@@ -62,25 +67,44 @@ export class ProductsService {
 
   // Create new product
   async create(createProductDto: CreateProductDto, images: any[], req: any) {
-    const {
-      title,
-      description,
-      price,
-      stock,
-      categoryId,
-      subCategoryId,
-      brand,
-    } = createProductDto;
+    const { title, description, price, categoryId, subCategoryId, brand } =
+      createProductDto;
+
+    // Get tenant ID from request
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant not found for user');
+    }
+
+    // Validate that category exists and belongs to the same tenant
+    const category = await this.databaseService.category.findFirst({
+      where: { id: categoryId, tenantId },
+    });
+    if (!category) {
+      throw new NotFoundException(
+        'Category not found or does not belong to your tenant',
+      );
+    }
+
+    // Validate subcategory if provided
+    if (subCategoryId) {
+      const subCategory = await this.databaseService.subCategory.findFirst({
+        where: {
+          id: subCategoryId,
+          categoryId,
+          category: { tenantId },
+        },
+      });
+      if (!subCategory) {
+        throw new NotFoundException(
+          'Subcategory not found or does not belong to the selected category',
+        );
+      }
+    }
 
     // Generate a unique slug from title
     const baseSlug = this.generateSlug(title);
     const slug = await this.getUniqueSlug(baseSlug);
-
-    // Get user ID from request
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new Error('User not authenticated');
-    }
 
     // Create product
     const product = await this.databaseService.product.create({
@@ -89,11 +113,10 @@ export class ProductsService {
         slug,
         description,
         price,
-        stock,
         categoryId,
         subCategoryId,
         brand,
-        createdBy: userId,
+        tenantId,
       },
     });
 
@@ -182,6 +205,10 @@ export class ProductsService {
 
     if (!existingProduct) throw new NotFoundException('Product not found');
 
+    if (existingProduct.tenantId !== req.user?.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
+
     const dataToUpdate: any = { ...updateProductDto };
 
     // If title is being changed, potentially regenerate slug uniquely
@@ -237,12 +264,16 @@ export class ProductsService {
   }
 
   // Delete Product
-  async delete(id: string) {
+  async delete(id: string, req: any) {
     const product = await this.databaseService.product.findUnique({
       where: { id },
     });
 
     if (!product) throw new NotFoundException('Product not found!');
+
+    if (product.tenantId !== req.user?.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
 
     const deletedProduct = await this.databaseService.product.delete({
       where: { id },
