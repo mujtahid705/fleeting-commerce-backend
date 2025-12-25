@@ -17,14 +17,34 @@ export class SubcategoriesService {
 
   // Get all subcategories (optionally filter by categoryId)
   async findAll(categoryId?: number, req?: any) {
-    const data = await this.databaseService.subCategory.findMany({
+    const subcategories = await this.databaseService.subCategory.findMany({
       where: {
         ...(categoryId && { categoryId }),
         category: { tenantId: req?.user?.tenantId },
       },
-      include: { category: true },
+      include: {
+        category: true,
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
       orderBy: { id: 'asc' },
     });
+
+    const data = subcategories.map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      categoryId: item.categoryId,
+      category: item.category,
+      isActive: item.isActive,
+      productsCount: item._count.products,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
     return { message: 'Subcategories retrieved successfully', data };
   }
 

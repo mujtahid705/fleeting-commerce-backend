@@ -23,6 +23,7 @@ export class CategoriesService {
         _count: {
           select: {
             products: true,
+            subCategories: true,
           },
         },
       },
@@ -35,6 +36,7 @@ export class CategoriesService {
       tenantId: item.tenantId,
       isActive: item.isActive,
       productsCount: item._count.products,
+      subCategoriesCount: item._count.subCategories,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     }));

@@ -13,6 +13,136 @@ import { UpdateInventoryQuantityDto } from './dto/update-inventory-quantity.dto'
 export class InventoryService {
   constructor(private readonly databaseService: DatabaseService) {}
 
+  // Get All Inventory Items
+  async findAll(req: any) {
+    const inventoryItems = await this.databaseService.inventory.findMany({
+      where: { tenantId: req.user?.tenantId },
+      include: {
+        product: {
+          include: {
+            images: {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+            },
+            category: true,
+            subCategory: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      message: 'Inventory items fetched successfully',
+      data: inventoryItems,
+    };
+  }
+
+  // Get Single Inventory Item by Product ID
+  async findOne(productId: string, req: any) {
+    const inventoryItem = await this.databaseService.inventory.findUnique({
+      where: { productId },
+      include: {
+        product: {
+          include: {
+            images: {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+            },
+            category: true,
+            subCategory: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!inventoryItem) {
+      throw new NotFoundException('Inventory item not found!');
+    }
+
+    if (inventoryItem.tenantId !== req.user?.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
+
+    return {
+      message: 'Inventory item fetched successfully',
+      data: inventoryItem,
+    };
+  }
+
+  // Get Low Stock Items
+  async getLowStock(threshold: number, req: any) {
+    const lowStockItems = await this.databaseService.inventory.findMany({
+      where: {
+        tenantId: req.user?.tenantId,
+        quantity: { lte: threshold },
+      },
+      include: {
+        product: {
+          include: {
+            images: {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+              take: 1,
+            },
+            category: true,
+          },
+        },
+      },
+      orderBy: { quantity: 'asc' },
+    });
+
+    return {
+      message: 'Low stock items fetched successfully',
+      threshold,
+      count: lowStockItems.length,
+      data: lowStockItems,
+    };
+  }
+
+  // Get Out of Stock Items
+  async getOutOfStock(req: any) {
+    const outOfStockItems = await this.databaseService.inventory.findMany({
+      where: {
+        tenantId: req.user?.tenantId,
+        quantity: 0,
+      },
+      include: {
+        product: {
+          include: {
+            images: {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+              take: 1,
+            },
+            category: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return {
+      message: 'Out of stock items fetched successfully',
+      count: outOfStockItems.length,
+      data: outOfStockItems,
+    };
+  }
+
   // Add Product to Inventory
   async addProductToInventory(
     addProductToInventory: AddProductToInventoryDto,
