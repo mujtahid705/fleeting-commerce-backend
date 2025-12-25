@@ -84,30 +84,26 @@ export class PlansService {
     return { message: 'Plan updated successfully', data: plan };
   }
 
-  // Delete plan (soft delete by setting isActive to false)
+  // Delete plan (hard delete)
   async delete(id: string) {
     const existing = await this.databaseService.plan.findUnique({
       where: { id },
     });
     if (!existing) throw new NotFoundException('Plan not found');
 
-    // Check if any active subscriptions are using this plan
-    const activeSubscriptions = await this.databaseService.subscription.count({
-      where: {
-        planId: id,
-        status: { in: ['ACTIVE', 'TRIAL'] },
-      },
+    // Check if any subscriptions are using this plan
+    const subscriptionCount = await this.databaseService.subscription.count({
+      where: { planId: id },
     });
 
-    if (activeSubscriptions > 0) {
+    if (subscriptionCount > 0) {
       throw new ConflictException(
-        `Cannot delete plan with ${activeSubscriptions} active subscription(s)`,
+        `Cannot delete plan with ${subscriptionCount} subscription(s) linked to it`,
       );
     }
 
-    const deletedPlan = await this.databaseService.plan.update({
+    const deletedPlan = await this.databaseService.plan.delete({
       where: { id },
-      data: { isActive: false },
     });
 
     return { message: 'Plan deleted successfully', data: deletedPlan };

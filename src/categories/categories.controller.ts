@@ -21,6 +21,7 @@ export class CategoriesController {
 
   // Get all categories
   @Get('all')
+  @UseGuards(JwtGuard)
   findAllCategories(@Req() req: any) {
     return this.categoriesService.findAll(req);
   }

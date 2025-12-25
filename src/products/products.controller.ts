@@ -33,6 +33,7 @@ export class ProductsController {
 
   // Get all products
   @Get('all')
+  @UseGuards(JwtGuard)
   findAllProducts(
     @Query('category') categoryId: number,
     @Query('subCategory') subCategoryId: number,
@@ -43,6 +44,7 @@ export class ProductsController {
 
   // Get single product by id
   @Get(':id')
+  @UseGuards(JwtGuard)
   findOneProduct(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() req: any,

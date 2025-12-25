@@ -24,6 +24,7 @@ export class SubcategoriesController {
 
   // Get all subcategories
   @Get('all')
+  @UseGuards(JwtGuard)
   findAll(@Query('categoryId') categoryId?: string, @Req() req?: any) {
     const cid = categoryId ? parseInt(categoryId, 10) : undefined;
     return this.subcategoriesService.findAll(cid, req);
