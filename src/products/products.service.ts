@@ -6,6 +6,7 @@ import {
 import { DatabaseService } from 'src/database/database.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FileUploadService } from 'src/common/services/file-upload.service';
+import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class ProductsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly fileUploadService: FileUploadService,
+    private readonly limitChecker: LimitCheckerService,
   ) {}
 
   // Find all products
@@ -70,13 +72,15 @@ export class ProductsService {
     const { title, description, price, categoryId, subCategoryId, brand } =
       createProductDto;
 
-    // Get tenant ID from request
     const tenantId = req.user?.tenantId;
     if (!tenantId) {
       throw new UnauthorizedException('Tenant not found for user');
     }
 
-    // Validate that category exists and belongs to the same tenant
+    // Check subscription and limits
+    await this.limitChecker.canCreate(tenantId, 'products');
+
+    // Validate category
     const category = await this.databaseService.category.findFirst({
       where: { id: categoryId, tenantId },
     });
@@ -209,6 +213,9 @@ export class ProductsService {
       throw new UnauthorizedException('Unauthorized tenant.');
     }
 
+    // Check subscription and limits for update
+    await this.limitChecker.canUpdate(req.user.tenantId);
+
     const dataToUpdate: any = { ...updateProductDto };
 
     // If title is being changed, potentially regenerate slug uniquely
@@ -274,6 +281,9 @@ export class ProductsService {
     if (product.tenantId !== req.user?.tenantId) {
       throw new UnauthorizedException('Unauthorized tenant.');
     }
+
+    // Check if delete is allowed
+    await this.limitChecker.canDelete(req.user.tenantId);
 
     const deletedProduct = await this.databaseService.product.delete({
       where: { id },

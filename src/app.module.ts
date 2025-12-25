@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -9,12 +10,17 @@ import { SubcategoriesModule } from './subcategories/subcategories.module';
 import { OrdersModule } from './orders/orders.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PlansModule } from './plans/plans.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     UsersModule,
     AuthModule,
@@ -24,6 +30,10 @@ import { InventoryModule } from './inventory/inventory.module';
     OrdersModule,
     TenantsModule,
     InventoryModule,
+    PlansModule,
+    SubscriptionsModule,
+    NotificationsModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [],
