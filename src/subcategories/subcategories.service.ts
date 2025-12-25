@@ -5,11 +5,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
+import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 import { CreateSubCategoryDto } from './dto/create-subcategory.dto';
 
 @Injectable()
 export class SubcategoriesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly limitChecker: LimitCheckerService,
+  ) {}
 
   // Get all subcategories (optionally filter by categoryId)
   async findAll(categoryId?: number, req?: any) {
@@ -27,6 +31,13 @@ export class SubcategoriesService {
   // Create subcategory
   async create(dto: CreateSubCategoryDto, req: any) {
     const { name, categoryId } = dto;
+
+    // Check subscription limit for subcategories per category
+    await this.limitChecker.canCreate(
+      req.user.tenantId,
+      'subcategories',
+      categoryId,
+    );
 
     const category = await this.databaseService.category.findUnique({
       where: { id: categoryId },
@@ -59,6 +70,9 @@ export class SubcategoriesService {
 
   // Update subcategory
   async update(id: number, dto: CreateSubCategoryDto, req: any) {
+    // Check subscription status
+    await this.limitChecker.canUpdate(req.user.tenantId);
+
     const existing = await this.databaseService.subCategory.findUnique({
       where: { id },
       include: { category: true },
@@ -115,6 +129,9 @@ export class SubcategoriesService {
 
   // Delete subcategory
   async delete(id: number, req: any) {
+    // Check subscription status (deletes allowed even over limit)
+    await this.limitChecker.canDelete(req.user.tenantId);
+
     const existing = await this.databaseService.subCategory.findUnique({
       where: { id },
       include: { category: true },

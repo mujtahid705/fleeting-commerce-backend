@@ -22,19 +22,23 @@ enum Role {
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  domain    String?   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  domain       String?  @unique
+  hasUsedTrial Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  users    User[]
-  products Product[]
-  orders   Order[]
-  categories Category[]
-  inventories Inventory[]
+  users         User[]
+  products      Product[]
+  orders        Order[]
+  categories    Category[]
+  inventories   Inventory[]
+  subscription  Subscription?
+  payments      Payment[]
+  notifications Notification[]
 }
 
 model User {
@@ -185,4 +189,107 @@ model Order_Item {
   // Relations
   order   Order   @relation(fields: [orderId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+}
+
+// Subscriptions Module
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Plan {
+  id            String          @id @default(uuid())
+  name          String          @unique
+  price         Float
+  currency      String          @default("BDT")
+  interval      BillingInterval
+  trialDays     Int             @default(0)
+  isActive      Boolean         @default(true)
+
+  // Limits
+  maxProducts                 Int
+  maxCategories               Int
+  maxSubcategoriesPerCategory Int
+  maxOrders                   Int
+  customDomain                Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String   @id @default(uuid())
+  tenantId           String   @unique
+  planId             String
+  status             SubscriptionStatus
+  startDate          DateTime
+  endDate            DateTime?
+  trialEndsAt        DateTime?
+  autoRenew          Boolean  @default(false)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id             String   @id @default(uuid())
+  tenantId       String
+  subscriptionId String
+  amount         Float
+  currency       String   @default("BDT")
+  provider       String   // sslcommerz
+  transactionId  String   @unique
+  validationId   String?
+  status         PaymentStatus
+  rawResponse    Json?
+
+  createdAt      DateTime @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([tenantId])
+}
+
+// Notifications
+enum NotificationType {
+  SUBSCRIPTION_EXPIRY
+  SUBSCRIPTION_EXPIRED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  LIMIT_WARNING
+  GENERAL
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  tenantId  String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }

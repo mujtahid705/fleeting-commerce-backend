@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly limitChecker: LimitCheckerService,
+  ) {}
 
   // Get all categories
   async findAll(req: any) {
@@ -40,6 +44,9 @@ export class CategoriesService {
 
   // Create category
   async create(createCategoryDto: CreateCategoryDto, tenantId: string) {
+    // Check subscription and limits
+    await this.limitChecker.canCreate(tenantId, 'categories');
+
     const existingCategory = await this.databaseService.category.findUnique({
       where: { name: createCategoryDto.name },
     });
@@ -72,6 +79,9 @@ export class CategoriesService {
       throw new UnauthorizedException('Unauthorized tenant.');
     }
 
+    // Check subscription and limits for update
+    await this.limitChecker.canUpdate(req.user.tenantId);
+
     const slug = await this.getUniqueSlug(updateCategoryDto.name);
     const updatedCategory = await this.databaseService.category.update({
       where: { id },
@@ -96,6 +106,9 @@ export class CategoriesService {
     if (category.tenantId !== req.user.tenantId) {
       throw new UnauthorizedException('Unauthorized tenant.');
     }
+
+    // Check if delete is allowed
+    await this.limitChecker.canDelete(req.user.tenantId);
 
     const deletedCategory = await this.databaseService.category.delete({
       where: { id },

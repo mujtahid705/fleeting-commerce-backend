@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Post,
   Req,
   UseGuards,
@@ -23,6 +24,17 @@ import { Roles } from './decorators/roles.decorator';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  // Validate session - call on every app reload
+  @Get('validate-session')
+  @UseGuards(JwtGuard)
+  validateSession(@Req() req: any) {
+    return this.authService.validateSession(
+      req.user.id,
+      req.user.tenantId,
+      req.user.role,
+    );
+  }
 
   // Login
   @Post('login')

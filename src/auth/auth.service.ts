@@ -16,6 +16,8 @@ import {
 
 @Injectable()
 export class AuthService {
+  private readonly GRACE_PERIOD_DAYS = 7;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
@@ -54,6 +56,244 @@ export class AuthService {
     return {
       token: token,
       user: user,
+    };
+  }
+
+  // Validate session and return comprehensive user data
+  async validateSession(userId: string, tenantId: string, role: string) {
+    const user = await this.databaseService.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        tenantId: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new BadRequestException('User account is deactivated');
+    }
+
+    // For SUPER_ADMIN, return basic info without subscription
+    if (role === 'SUPER_ADMIN') {
+      return {
+        message: 'Session validated successfully',
+        data: {
+          user,
+          tenant: null,
+          subscription: null,
+          access: {
+            hasAccess: true,
+            canCreate: true,
+            canUpdate: true,
+            canDelete: true,
+            isInGracePeriod: false,
+            gracePeriodDaysRemaining: 0,
+          },
+          usage: null,
+          unreadNotifications: 0,
+        },
+      };
+    }
+
+    // Get tenant info
+    const tenant = tenantId
+      ? await this.databaseService.tenant.findUnique({
+          where: { id: tenantId },
+          select: {
+            id: true,
+            name: true,
+            hasUsedTrial: true,
+            createdAt: true,
+          },
+        })
+      : null;
+
+    // Get subscription info
+    const subscription = tenantId
+      ? await this.databaseService.subscription.findUnique({
+          where: { tenantId },
+          include: { plan: true },
+        })
+      : null;
+
+    // Calculate access status
+    let access = {
+      hasAccess: false,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      isInGracePeriod: false,
+      gracePeriodDaysRemaining: 0,
+      daysRemaining: 0,
+      message: 'No subscription found',
+    };
+
+    if (subscription) {
+      const status = this.getSubscriptionStatus(subscription);
+      access = {
+        hasAccess: status.hasAccess,
+        canCreate: status.canCreate,
+        canUpdate: status.canUpdate,
+        canDelete: status.canDelete,
+        isInGracePeriod: status.isInGracePeriod,
+        gracePeriodDaysRemaining: status.gracePeriodDaysRemaining,
+        daysRemaining: status.daysRemaining,
+        message: status.message,
+      };
+    }
+
+    // Get usage stats for TENANT_ADMIN
+    let usage: any = null;
+    if (role === 'TENANT_ADMIN' && tenantId && subscription) {
+      const [productCount, categoryCount] = await Promise.all([
+        this.databaseService.product.count({ where: { tenantId } }),
+        this.databaseService.category.count({ where: { tenantId } }),
+      ]);
+
+      const categories = await this.databaseService.category.findMany({
+        where: { tenantId },
+        include: { _count: { select: { subCategories: true } } },
+      });
+
+      const maxSubcategoriesUsed = categories.reduce(
+        (max, cat) => Math.max(max, cat._count.subCategories),
+        0,
+      );
+
+      usage = {
+        products: {
+          used: productCount,
+          limit: subscription.plan.maxProducts,
+          remaining: Math.max(0, subscription.plan.maxProducts - productCount),
+        },
+        categories: {
+          used: categoryCount,
+          limit: subscription.plan.maxCategories,
+          remaining: Math.max(
+            0,
+            subscription.plan.maxCategories - categoryCount,
+          ),
+        },
+        subcategoriesPerCategory: {
+          maxUsed: maxSubcategoriesUsed,
+          limit: subscription.plan.maxSubcategoriesPerCategory,
+        },
+      };
+    }
+
+    // Get unread notification count
+    const unreadNotifications = tenantId
+      ? await this.databaseService.notification.count({
+          where: { tenantId, isRead: false },
+        })
+      : 0;
+
+    return {
+      message: 'Session validated successfully',
+      data: {
+        user,
+        tenant,
+        subscription: subscription
+          ? {
+              id: subscription.id,
+              status: subscription.status,
+              startDate: subscription.startDate,
+              endDate: subscription.endDate,
+              trialEndsAt: subscription.trialEndsAt,
+              plan: subscription.plan,
+            }
+          : null,
+        access,
+        usage,
+        unreadNotifications,
+      },
+    };
+  }
+
+  // Helper: Calculate subscription status
+  private getSubscriptionStatus(subscription: any): {
+    hasAccess: boolean;
+    canCreate: boolean;
+    canUpdate: boolean;
+    canDelete: boolean;
+    isInGracePeriod: boolean;
+    gracePeriodDaysRemaining: number;
+    daysRemaining: number;
+    message: string;
+  } {
+    const now = new Date();
+    const endDate = subscription.endDate
+      ? new Date(subscription.endDate)
+      : subscription.trialEndsAt
+        ? new Date(subscription.trialEndsAt)
+        : null;
+
+    if (!endDate) {
+      return {
+        hasAccess: true,
+        canCreate: true,
+        canUpdate: true,
+        canDelete: true,
+        isInGracePeriod: false,
+        gracePeriodDaysRemaining: 0,
+        daysRemaining: 0,
+        message: 'Subscription active',
+      };
+    }
+
+    const diffTime = endDate.getTime() - now.getTime();
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // Active subscription
+    if (daysRemaining > 0) {
+      return {
+        hasAccess: true,
+        canCreate: true,
+        canUpdate: true,
+        canDelete: true,
+        isInGracePeriod: false,
+        gracePeriodDaysRemaining: 0,
+        daysRemaining,
+        message: `Subscription active. ${daysRemaining} day(s) remaining.`,
+      };
+    }
+
+    // Grace period
+    const daysSinceExpiry = Math.abs(daysRemaining);
+    if (daysSinceExpiry <= this.GRACE_PERIOD_DAYS) {
+      const graceDaysLeft = this.GRACE_PERIOD_DAYS - daysSinceExpiry;
+      return {
+        hasAccess: true,
+        canCreate: false,
+        canUpdate: false,
+        canDelete: true,
+        isInGracePeriod: true,
+        gracePeriodDaysRemaining: graceDaysLeft,
+        daysRemaining: 0,
+        message: `Subscription expired. ${graceDaysLeft} day(s) left to renew.`,
+      };
+    }
+
+    // Fully expired
+    return {
+      hasAccess: false,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      isInGracePeriod: false,
+      gracePeriodDaysRemaining: 0,
+      daysRemaining: 0,
+      message: 'Subscription expired. Please renew to regain access.',
     };
   }
 
