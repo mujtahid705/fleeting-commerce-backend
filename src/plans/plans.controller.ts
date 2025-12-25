@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -56,6 +57,14 @@ export class PlansController {
     @Body() updatePlanDto: UpdatePlanDto,
   ) {
     return this.plansService.update(id, updatePlanDto);
+  }
+
+  // Delete Plan
+  @Delete(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('SUPER_ADMIN')
+  delete(@Param('id', ParseUUIDPipe) id: string) {
+    return this.plansService.delete(id);
   }
 
   // Seed default plans (admin only)
