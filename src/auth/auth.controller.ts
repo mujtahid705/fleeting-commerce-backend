@@ -17,6 +17,11 @@ import {
   CreateTenantAdminDto,
   CreateTenantAdminWithTenantDto,
 } from './dto/create-user.dto';
+import {
+  InitiateRegistrationDto,
+  VerifyOtpRegistrationDto,
+  ResendOtpDto,
+} from './dto/otp.dto';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtGuard } from './guards/jwt.guard';
 import { Roles } from './decorators/roles.decorator';
@@ -59,7 +64,7 @@ export class AuthController {
     return this.authService.createTenantAdmin(createTenantAdminDto);
   }
 
-  // Register Tenant Admin with New Tenant
+  // Register Tenant Admin with New Tenant (Legacy - direct registration)
   @Post('register/tenant-admin-with-tenant')
   @UsePipes(new ValidationPipe({ whitelist: true }))
   registerTenantAdminWithTenant(
@@ -75,5 +80,35 @@ export class AuthController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   registerCustomer(@Body() createCustomerDto: CreateCustomerDto) {
     return this.authService.createCustomer(createCustomerDto);
+  }
+
+  // ========== OTP-BASED REGISTRATION ENDPOINTS ==========
+
+  // Step 1: Initiate registration - send OTP to email
+  @Post('register/initiate')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  initiateRegistration(@Body() initiateDto: InitiateRegistrationDto) {
+    return this.authService.initiateRegistration(initiateDto.email);
+  }
+
+  // Step 2: Verify OTP and complete registration
+  @Post('register/verify-otp')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  verifyOtpAndRegister(@Body() verifyDto: VerifyOtpRegistrationDto) {
+    return this.authService.verifyOtpAndRegister(
+      verifyDto.email,
+      verifyDto.otp,
+      verifyDto.name,
+      verifyDto.password,
+      verifyDto.phone,
+      verifyDto.tenantName,
+    );
+  }
+
+  // Resend OTP
+  @Post('register/resend-otp')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  resendOtp(@Body() resendDto: ResendOtpDto) {
+    return this.authService.resendOtp(resendDto.email);
   }
 }

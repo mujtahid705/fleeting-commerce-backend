@@ -14,6 +14,7 @@ import { PlansModule } from './plans/plans.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PaymentsModule } from './payments/payments.module';
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    MailModule,
     UsersModule,
     AuthModule,
     ProductsModule,

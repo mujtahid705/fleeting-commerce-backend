@@ -293,3 +293,17 @@ model Notification {
 
   @@index([tenantId])
 }
+
+// Email OTP for registration verification
+model EmailOtp {
+  id            String    @id @default(uuid())
+  email         String
+  otp           String
+  expiresAt     DateTime
+  verified      Boolean   @default(false)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([email])
+}
