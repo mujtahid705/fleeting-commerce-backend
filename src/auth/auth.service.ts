@@ -13,15 +13,28 @@ import {
   CreateTenantAdminDto,
   CreateTenantAdminWithTenantDto,
 } from './dto/create-user.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class AuthService {
   private readonly GRACE_PERIOD_DAYS = 7;
 
+  // OTP Configuration
+  private readonly OTP_EXPIRY_MINUTES = 5;
+  private readonly MAX_OTP_ATTEMPTS = 3;
+  private readonly OTP_RESEND_COOLDOWN_SECONDS = 60;
+  private readonly MAX_OTP_REQUESTS_PER_HOUR = 3;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
+
+  // Generate 6-digit OTP
+  private generateOtp(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
 
   // Validate user credentials
   async validateUser(authLoginDto: AuthLoginDto): Promise<any> {
@@ -419,5 +432,199 @@ export class AuthService {
 
     const { password, ...data } = user;
     return { message: 'Super admin created successfully', data };
+  }
+
+  // ========== OTP-BASED REGISTRATION METHODS ==========
+
+  // Initiate registration - send OTP to email
+  async initiateRegistration(email: string) {
+    // Check if email already exists in users table
+    const existingUser = await this.databaseService.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('Email has already been taken!');
+    }
+
+    // Check for rate limiting - max 3 OTP requests per email per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentOtpCount = await this.databaseService.emailOtp.count({
+      where: {
+        email,
+        createdAt: { gte: oneHourAgo },
+      },
+    });
+
+    if (recentOtpCount >= this.MAX_OTP_REQUESTS_PER_HOUR) {
+      throw new BadRequestException(
+        'Too many OTP requests. Please try again after an hour.',
+      );
+    }
+
+    // Check cooldown - prevent spam (must wait 60 seconds between requests)
+    const lastOtp = await this.databaseService.emailOtp.findFirst({
+      where: { email },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (lastOtp) {
+      const cooldownEnd = new Date(
+        lastOtp.createdAt.getTime() + this.OTP_RESEND_COOLDOWN_SECONDS * 1000,
+      );
+      if (new Date() < cooldownEnd) {
+        const remainingSeconds = Math.ceil(
+          (cooldownEnd.getTime() - Date.now()) / 1000,
+        );
+        throw new BadRequestException(
+          `Please wait ${remainingSeconds} seconds before requesting a new OTP.`,
+        );
+      }
+    }
+
+    // Generate new OTP
+    const otp = this.generateOtp();
+    const expiresAt = new Date(
+      Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000,
+    );
+
+    // Delete any existing OTPs for this email
+    await this.databaseService.emailOtp.deleteMany({
+      where: { email },
+    });
+
+    // Save new OTP
+    await this.databaseService.emailOtp.create({
+      data: {
+        email,
+        otp,
+        expiresAt,
+      },
+    });
+
+    // Send OTP email
+    const emailSent = await this.mailService.sendOtpEmail(email, otp);
+
+    if (!emailSent) {
+      throw new BadRequestException(
+        'Failed to send OTP email. Please try again.',
+      );
+    }
+
+    return {
+      message: 'OTP sent successfully to your email',
+      data: {
+        email,
+        expiresIn: `${this.OTP_EXPIRY_MINUTES} minutes`,
+      },
+    };
+  }
+
+  // Verify OTP and complete registration
+  async verifyOtpAndRegister(
+    email: string,
+    otp: string,
+    name: string,
+    password: string,
+    phone: string,
+    tenantName: string,
+  ) {
+    // Find the OTP record
+    const otpRecord = await this.databaseService.emailOtp.findFirst({
+      where: { email },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord) {
+      throw new BadRequestException(
+        'No OTP found for this email. Please request a new OTP.',
+      );
+    }
+
+    // Check if OTP is expired
+    if (new Date() > otpRecord.expiresAt) {
+      await this.databaseService.emailOtp.delete({
+        where: { id: otpRecord.id },
+      });
+      throw new BadRequestException(
+        'OTP has expired. Please request a new one.',
+      );
+    }
+
+    // Check max attempts
+    if (otpRecord.attempts >= this.MAX_OTP_ATTEMPTS) {
+      await this.databaseService.emailOtp.delete({
+        where: { id: otpRecord.id },
+      });
+      throw new BadRequestException(
+        'Maximum OTP attempts exceeded. Please request a new OTP.',
+      );
+    }
+
+    // Verify OTP
+    if (otpRecord.otp !== otp) {
+      // Increment attempts
+      await this.databaseService.emailOtp.update({
+        where: { id: otpRecord.id },
+        data: {
+          attempts: otpRecord.attempts + 1,
+          lastAttemptAt: new Date(),
+        },
+      });
+
+      const remainingAttempts = this.MAX_OTP_ATTEMPTS - otpRecord.attempts - 1;
+      throw new BadRequestException(
+        `Invalid OTP. ${remainingAttempts} attempt(s) remaining.`,
+      );
+    }
+
+    // OTP is valid - check if email is still available
+    const existingUser = await this.databaseService.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('Email has already been taken!');
+    }
+
+    // Create tenant and user
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const tenant = await this.databaseService.tenant.create({
+      data: {
+        name: tenantName,
+      },
+    });
+
+    const user = await this.databaseService.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        phone,
+        tenantId: tenant.id,
+        isActive: true,
+        role: 'TENANT_ADMIN',
+      },
+    });
+
+    // Delete the OTP record
+    await this.databaseService.emailOtp.delete({
+      where: { id: otpRecord.id },
+    });
+
+    const { password: _, ...userData } = user;
+    return {
+      message: 'Registration completed successfully',
+      data: {
+        user: userData,
+        tenant,
+      },
+    };
+  }
+
+  // Resend OTP
+  async resendOtp(email: string) {
+    return this.initiateRegistration(email);
   }
 }
