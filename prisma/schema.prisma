@@ -39,6 +39,23 @@ model Tenant {
   subscription  Subscription?
   payments      Payment[]
   notifications Notification[]
+  brand         TenantBrand?
+}
+
+// Tenant Branding Module
+model TenantBrand {
+  id          String   @id @default(uuid())
+  tenantId    String   @unique
+  domain      String?  @unique
+  logoUrl     String?
+  tagline     String?
+  description String?
+  theme       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model User {
