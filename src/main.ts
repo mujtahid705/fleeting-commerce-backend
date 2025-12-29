@@ -11,15 +11,17 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
-      if (!origin) return callback(null, true);
+      // Allow requests with no origin (like mobile apps, curl, Postman, webhooks)
+      if (!origin || origin === 'null') {
+        return callback(null, true);
+      }
 
-      // Allow localhost with any subdomain on ports 3000, 3001, 5000
+      // Allow localhost with any subdomain on ports 3000, 3001, 5000 (both http and https)
       const allowedPatterns = [
-        /^http:\/\/localhost:\d+$/,
-        /^http:\/\/127\.0\.0\.1:\d+$/,
-        /^http:\/\/.+\.localhost:\d+$/,
-        /^http:\/\/.+\.127\.0\.0\.1:\d+$/,
+        /^https?:\/\/localhost:\d+$/,
+        /^https?:\/\/127\.0\.0\.1:\d+$/,
+        /^https?:\/\/.+\.localhost:\d+$/,
+        /^https?:\/\/.+\.127\.0\.0\.1:\d+$/,
       ];
 
       const isAllowed = allowedPatterns.some((pattern) => pattern.test(origin));
@@ -27,6 +29,7 @@ async function bootstrap() {
       if (isAllowed) {
         callback(null, true);
       } else {
+        console.warn(`CORS blocked origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },

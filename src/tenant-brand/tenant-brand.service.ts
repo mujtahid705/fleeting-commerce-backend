@@ -409,4 +409,26 @@ export class TenantBrandService implements OnModuleInit {
       message: 'Brand settings deleted successfully',
     };
   }
+
+  async checkUniqueDomain(domain: string, currentTenantId: string) {
+    if (!domain) {
+      return {
+        message: 'Domain is required',
+        isAvailable: false,
+      };
+    }
+
+    const existingTenant = await this.databaseService.tenant.findUnique({
+      where: { domain },
+      select: { id: true },
+    });
+
+    const isAvailable =
+      !existingTenant || existingTenant.id === currentTenantId;
+
+    return {
+      message: isAvailable ? 'Domain is available' : 'Domain is already taken',
+      isAvailable,
+    };
+  }
 }

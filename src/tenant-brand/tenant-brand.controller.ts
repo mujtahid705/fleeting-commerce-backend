@@ -60,6 +60,13 @@ export class TenantBrandController {
     return this.tenantBrandService.getBrandByDomain(domain);
   }
 
+  // Check domain availability
+  @Get('check-unique-domain')
+  @UseGuards(JwtGuard)
+  checkUniqueDomain(@Query('domain') domain: string, @Req() req: any) {
+    return this.tenantBrandService.checkUniqueDomain(domain, req.user.tenantId);
+  }
+
   /**
    * Create or update brand settings (upsert)
    * POST /api/tenant-brand
