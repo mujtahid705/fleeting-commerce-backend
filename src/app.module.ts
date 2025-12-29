@@ -15,6 +15,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { MailModule } from './mail/mail.module';
+import { TenantBrandModule } from './tenant-brand/tenant-brand.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { MailModule } from './mail/mail.module';
     SubcategoriesModule,
     OrdersModule,
     TenantsModule,
+    TenantBrandModule,
     InventoryModule,
     PlansModule,
     SubscriptionsModule,

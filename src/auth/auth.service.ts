@@ -118,15 +118,26 @@ export class AuthService {
       };
     }
 
-    // Get tenant info
+    // Get tenant info with brand
     const tenant = tenantId
       ? await this.databaseService.tenant.findUnique({
           where: { id: tenantId },
           select: {
             id: true,
             name: true,
+            domain: true,
             hasUsedTrial: true,
             createdAt: true,
+            brand: {
+              select: {
+                id: true,
+                logoUrl: true,
+                tagline: true,
+                description: true,
+                theme: true,
+                domain: true,
+              },
+            },
           },
         })
       : null;
@@ -216,6 +227,7 @@ export class AuthService {
       data: {
         user,
         tenant,
+        brand: tenant?.brand || null,
         subscription: subscription
           ? {
               id: subscription.id,
