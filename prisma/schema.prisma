@@ -142,8 +142,8 @@ model Inventory {
 // Category & Subcategory
 model Category {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
-  slug      String   @unique
+  name      String
+  slug      String
   tenantId  String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -153,13 +153,16 @@ model Category {
   products      Product[]
   subCategories SubCategory[]
   tenant        Tenant       @relation(fields: [tenantId], references: [id])
+
+  @@unique([name, tenantId])
+  @@unique([slug, tenantId])
 }
 
 model SubCategory {
   id         Int      @id @default(autoincrement())
   name       String
   categoryId Int
-  slug       String   @unique
+  slug       String
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -167,6 +170,9 @@ model SubCategory {
   // Relations
   products Product[]
   category Category  @relation(fields: [categoryId], references: [id])
+
+  @@unique([name, categoryId])
+  @@unique([slug, categoryId])
 }
 
 // Order Module
