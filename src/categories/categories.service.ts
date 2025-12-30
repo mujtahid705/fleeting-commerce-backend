@@ -49,14 +49,17 @@ export class CategoriesService {
     // Check subscription and limits
     await this.limitChecker.canCreate(tenantId, 'categories');
 
-    const existingCategory = await this.databaseService.category.findUnique({
-      where: { name: createCategoryDto.name },
+    const existingCategory = await this.databaseService.category.findFirst({
+      where: { 
+        name: createCategoryDto.name,
+        tenantId 
+      },
     });
 
     if (existingCategory)
       throw new ConflictException('Category already exists!');
 
-    const slug = await this.getUniqueSlug(createCategoryDto.name);
+    const slug = await this.getUniqueSlug(createCategoryDto.name, tenantId);
 
     const newCategory = await this.databaseService.category.create({
       data: { name: createCategoryDto.name, slug, tenantId },
@@ -84,7 +87,19 @@ export class CategoriesService {
     // Check subscription and limits for update
     await this.limitChecker.canUpdate(req.user.tenantId);
 
-    const slug = await this.getUniqueSlug(updateCategoryDto.name);
+    // Check if name already exists for this tenant (excluding current category)
+    const duplicate = await this.databaseService.category.findFirst({
+      where: {
+        name: updateCategoryDto.name,
+        tenantId: req.user.tenantId,
+        NOT: { id },
+      },
+    });
+
+    if (duplicate)
+      throw new ConflictException('Category already exists!');
+
+    const slug = await this.getUniqueSlug(updateCategoryDto.name, req.user.tenantId);
     const updatedCategory = await this.databaseService.category.update({
       where: { id },
       data: { name: updateCategoryDto.name, slug },
@@ -120,15 +135,18 @@ export class CategoriesService {
   }
 
   // Generate unique slug
-  private async getUniqueSlug(name: string): Promise<string> {
+  private async getUniqueSlug(name: string, tenantId: string): Promise<string> {
     const baseSlug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    // Check if base slug is available
+    // Check if base slug is available within tenant
     const existing = await this.databaseService.category.findMany({
-      where: { slug: { startsWith: baseSlug } },
+      where: { 
+        slug: { startsWith: baseSlug },
+        tenantId 
+      },
       select: { slug: true },
     });
 
