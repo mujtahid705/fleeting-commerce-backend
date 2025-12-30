@@ -50,9 +50,9 @@ export class CategoriesService {
     await this.limitChecker.canCreate(tenantId, 'categories');
 
     const existingCategory = await this.databaseService.category.findFirst({
-      where: { 
+      where: {
         name: createCategoryDto.name,
-        tenantId 
+        tenantId,
       },
     });
 
@@ -96,10 +96,12 @@ export class CategoriesService {
       },
     });
 
-    if (duplicate)
-      throw new ConflictException('Category already exists!');
+    if (duplicate) throw new ConflictException('Category already exists!');
 
-    const slug = await this.getUniqueSlug(updateCategoryDto.name, req.user.tenantId);
+    const slug = await this.getUniqueSlug(
+      updateCategoryDto.name,
+      req.user.tenantId,
+    );
     const updatedCategory = await this.databaseService.category.update({
       where: { id },
       data: { name: updateCategoryDto.name, slug },
@@ -143,9 +145,9 @@ export class CategoriesService {
 
     // Check if base slug is available within tenant
     const existing = await this.databaseService.category.findMany({
-      where: { 
+      where: {
         slug: { startsWith: baseSlug },
-        tenantId 
+        tenantId,
       },
       select: { slug: true },
     });
