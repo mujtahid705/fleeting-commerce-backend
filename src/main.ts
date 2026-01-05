@@ -9,7 +9,39 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Enable CORS
-  app.enableCors();
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman, webhooks)
+      if (!origin || origin === 'null') {
+        return callback(null, true);
+      }
+
+      // Allow localhost with any subdomain on ports 3000, 3001, 5000 (both http and https)
+      const allowedPatterns = [
+        /^https?:\/\/localhost:\d+$/,
+        /^https?:\/\/127\.0\.0\.1:\d+$/,
+        /^https?:\/\/.+\.localhost:\d+$/,
+        /^https?:\/\/.+\.127\.0\.0\.1:\d+$/,
+      ];
+
+      const isAllowed = allowedPatterns.some((pattern) => pattern.test(origin));
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-tenant-domain',
+      'domain',
+    ],
+  });
 
   // Set global prefix
   app.setGlobalPrefix('api');

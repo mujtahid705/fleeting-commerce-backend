@@ -2,21 +2,28 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly limitChecker: LimitCheckerService,
+  ) {}
 
   // Get all categories
-  async findAll() {
+  async findAll(req: any) {
     const categories = await this.databaseService.category.findMany({
+      where: { tenantId: req.user?.tenantId },
       include: {
         _count: {
           select: {
             products: true,
+            subCategories: true,
           },
         },
       },
@@ -26,35 +33,43 @@ export class CategoriesService {
       id: item.id,
       name: item.name,
       slug: item.slug,
+      tenantId: item.tenantId,
       isActive: item.isActive,
       productsCount: item._count.products,
+      subCategoriesCount: item._count.subCategories,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     }));
 
-    return data;
+    return { message: 'Categories fetched successfully', data };
   }
 
   // Create category
-  async create(createCategoryDto: CreateCategoryDto) {
-    const existingCategory = await this.databaseService.category.findUnique({
-      where: { name: createCategoryDto.name },
+  async create(createCategoryDto: CreateCategoryDto, tenantId: string) {
+    // Check subscription and limits
+    await this.limitChecker.canCreate(tenantId, 'categories');
+
+    const existingCategory = await this.databaseService.category.findFirst({
+      where: {
+        name: createCategoryDto.name,
+        tenantId,
+      },
     });
 
     if (existingCategory)
       throw new ConflictException('Category already exists!');
 
-    const slug = await this.getUniqueSlug(createCategoryDto.name);
+    const slug = await this.getUniqueSlug(createCategoryDto.name, tenantId);
 
     const newCategory = await this.databaseService.category.create({
-      data: { name: createCategoryDto.name, slug },
+      data: { name: createCategoryDto.name, slug, tenantId },
     });
 
     return { message: 'Category created successfully!', data: newCategory };
   }
 
   // Update category
-  async update(id: number, updateCategoryDto: CreateCategoryDto) {
+  async update(id: number, updateCategoryDto: CreateCategoryDto, req: any) {
     if (!id || isNaN(id)) {
       throw new NotFoundException('Invalid category ID');
     }
@@ -65,7 +80,28 @@ export class CategoriesService {
 
     if (!category) throw new NotFoundException('Category not found');
 
-    const slug = await this.getUniqueSlug(updateCategoryDto.name);
+    if (category.tenantId !== req.user.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
+
+    // Check subscription and limits for update
+    await this.limitChecker.canUpdate(req.user.tenantId);
+
+    // Check if name already exists for this tenant (excluding current category)
+    const duplicate = await this.databaseService.category.findFirst({
+      where: {
+        name: updateCategoryDto.name,
+        tenantId: req.user.tenantId,
+        NOT: { id },
+      },
+    });
+
+    if (duplicate) throw new ConflictException('Category already exists!');
+
+    const slug = await this.getUniqueSlug(
+      updateCategoryDto.name,
+      req.user.tenantId,
+    );
     const updatedCategory = await this.databaseService.category.update({
       where: { id },
       data: { name: updateCategoryDto.name, slug },
@@ -75,7 +111,7 @@ export class CategoriesService {
   }
 
   // Delete category
-  async delete(id: number) {
+  async delete(id: number, req: any) {
     if (!id || isNaN(id)) {
       throw new NotFoundException('Invalid category ID');
     }
@@ -86,6 +122,13 @@ export class CategoriesService {
 
     if (!category) throw new NotFoundException('Category not found');
 
+    if (category.tenantId !== req.user.tenantId) {
+      throw new UnauthorizedException('Unauthorized tenant.');
+    }
+
+    // Check if delete is allowed
+    await this.limitChecker.canDelete(req.user.tenantId);
+
     const deletedCategory = await this.databaseService.category.delete({
       where: { id },
     });
@@ -94,15 +137,18 @@ export class CategoriesService {
   }
 
   // Generate unique slug
-  private async getUniqueSlug(name: string): Promise<string> {
+  private async getUniqueSlug(name: string, tenantId: string): Promise<string> {
     const baseSlug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    // Check if base slug is available
+    // Check if base slug is available within tenant
     const existing = await this.databaseService.category.findMany({
-      where: { slug: { startsWith: baseSlug } },
+      where: {
+        slug: { startsWith: baseSlug },
+        tenantId,
+      },
       select: { slug: true },
     });
 

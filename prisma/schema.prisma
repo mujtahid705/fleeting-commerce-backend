@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -14,53 +8,150 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Users Module
-enum Role {
-  user
-  admin
-  superAdmin
+model Category {
+  id            Int           @id @default(autoincrement())
+  name          String
+  slug          String
+  tenantId      String
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  products      Product[]
+  subCategories SubCategory[]
+
+  @@unique([name, tenantId])
+  @@unique([slug, tenantId])
 }
 
-model User {
+model EmailOtp {
+  id            String    @id @default(uuid())
+  email         String
+  otp           String
+  expiresAt     DateTime
+  verified      Boolean   @default(false)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([email])
+}
+
+model Inventory {
   id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      Role     @default(user)
-  phone     String?
-  isActive  Boolean  @default(true)
+  productId String   @unique
+  tenantId  String
+  quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  addedBy   String
+  isActive  Boolean  @default(true)
+  user      User     @relation(fields: [addedBy], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
 
-  // Relations
-  products Product[]
-  orders   Order[]
+  @@index([productId])
 }
 
-// Products Module
+model Notification {
+  id        String           @id @default(uuid())
+  tenantId  String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  userId      String
+  tenantId    String
+  totalAmount Float
+  status      Status      @default(pending)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  order_items OrderItem[]
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  productId String
+  quantity  Int
+  unitPrice Float
+  discount  Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@map("Order_Item")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  tenantId       String
+  subscriptionId String
+  amount         Float
+  currency       String        @default("BDT")
+  provider       String
+  transactionId  String        @unique
+  validationId   String?
+  status         PaymentStatus
+  rawResponse    Json?
+  createdAt      DateTime      @default(now())
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Plan {
+  id                          String          @id @default(uuid())
+  name                        String          @unique
+  price                       Float
+  currency                    String          @default("BDT")
+  interval                    BillingInterval
+  trialDays                   Int             @default(0)
+  isActive                    Boolean         @default(true)
+  maxProducts                 Int
+  maxOrders                   Int
+  customDomain                Boolean         @default(false)
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  maxCategories               Int
+  maxSubcategoriesPerCategory Int
+  subscriptions               Subscription[]
+}
+
 model Product {
-  id            String   @id @default(uuid())
+  id            String         @id @default(uuid())
   title         String
-  slug          String   @unique
+  slug          String         @unique
   description   String?
   price         Float
-  stock         Int
   categoryId    Int
   subCategoryId Int?
-  createdBy     String
+  tenantId      String
   brand         String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  totalSold     Int            @default(0)
+  inventory     Inventory?
+  order_items   OrderItem[]
+  category      Category       @relation(fields: [categoryId], references: [id])
+  subCategory   SubCategory?   @relation(fields: [subCategoryId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  images        ProductImage[]
 
-  // Relations
-  creator     User           @relation(fields: [createdBy], references: [id])
-  category    Category       @relation(fields: [categoryId], references: [id])
-  subCategory SubCategory?   @relation(fields: [subCategoryId], references: [id])
-  images      ProductImage[]
-  order_items Order_Item[]
-
-  @@index([createdBy])
+  @@index([tenantId])
 }
 
 model ProductImage {
@@ -71,42 +162,123 @@ model ProductImage {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
 
-// Category & Subcategory
-model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  slug      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  products      Product[]
-  subCategories SubCategory[]
-}
-
 model SubCategory {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   name       String
   categoryId Int
-  slug       String   @unique
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  slug       String
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  products   Product[]
+  category   Category  @relation(fields: [categoryId], references: [id])
 
-  // Relations
-  products Product[]
-  category Category  @relation(fields: [categoryId], references: [id])
+  @@unique([name, categoryId])
+  @@unique([slug, categoryId])
 }
 
-// Order Module
+model Subscription {
+  id          String             @id @default(uuid())
+  tenantId    String             @unique
+  planId      String
+  status      SubscriptionStatus
+  startDate   DateTime
+  endDate     DateTime?
+  trialEndsAt DateTime?
+  autoRenew   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  payments    Payment[]
+  plan        Plan               @relation(fields: [planId], references: [id])
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+}
+
+model Tenant {
+  id            String         @id @default(uuid())
+  name          String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  hasUsedTrial  Boolean        @default(false)
+  domain        String?        @unique
+  categories    Category[]
+  inventories   Inventory[]
+  notifications Notification[]
+  orders        Order[]
+  payments      Payment[]
+  products      Product[]
+  subscription  Subscription?
+  brand         TenantBrand?
+  users         User[]
+}
+
+model TenantBrand {
+  id                 String   @id @default(uuid())
+  tenantId           String   @unique
+  logoUrl            String?
+  tagline            String?
+  description        String?
+  theme              Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  domain             String?  @unique
+  hero               Json?
+  browseCategories   Json?
+  exclusiveSection   Json?
+  featuredCategories Json?
+  footer             Json?
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id          String      @id @default(uuid())
+  email       String      @unique
+  password    String
+  name        String?
+  role        Role        @default(CUSTOMER)
+  tenantId    String?
+  phone       String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  inventories Inventory[]
+  orders      Order[]
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum NotificationType {
+  SUBSCRIPTION_EXPIRY
+  SUBSCRIPTION_EXPIRED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  LIMIT_WARNING
+  GENERAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum Role {
+  CUSTOMER
+  TENANT_ADMIN
+  SUPER_ADMIN
+}
+
 enum Status {
   pending
   processing
@@ -115,29 +287,9 @@ enum Status {
   cancelled
 }
 
-model Order {
-  id          Int      @id @default(autoincrement())
-  userId      String
-  totalAmount Float
-  status      Status   @default(pending)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  order_items Order_Item[]
-  user        User         @relation(fields: [userId], references: [id])
-}
-
-model Order_Item {
-  id        Int      @id @default(autoincrement())
-  orderId   Int
-  productId String
-  quantity  Int
-  unitPrice Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
