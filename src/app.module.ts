@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { MailModule } from './mail/mail.module';
 import { TenantBrandModule } from './tenant-brand/tenant-brand.module';
+import { StorefrontModule } from './storefront/storefront.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { TenantBrandModule } from './tenant-brand/tenant-brand.module';
     SubscriptionsModule,
     NotificationsModule,
     PaymentsModule,
+    StorefrontModule,
   ],
   controllers: [],
   providers: [],
