@@ -6,6 +6,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateTenantBrandDto {
   @IsOptional()
@@ -24,8 +25,29 @@ export class CreateTenantBrandDto {
   description?: string;
 
   @IsOptional()
+  @Transform(({ value }) => parseInt(value))
   @IsInt()
   @Min(1)
   @Max(100)
   theme?: number;
+
+  @IsOptional()
+  @IsString()
+  hero?: string;
+
+  @IsOptional()
+  @IsString()
+  browseCategories?: string;
+
+  @IsOptional()
+  @IsString()
+  exclusiveSection?: string;
+
+  @IsOptional()
+  @IsString()
+  featuredCategories?: string;
+
+  @IsOptional()
+  @IsString()
+  footer?: string;
 }

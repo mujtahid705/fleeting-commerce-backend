@@ -11,12 +11,15 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   ParseUUIDPipe,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import 'multer';
-import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileInterceptor,
+  FileFieldsInterceptor,
+} from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,31 +33,20 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 export class TenantBrandController {
   constructor(private readonly tenantBrandService: TenantBrandService) {}
 
-  /**
-   * Get current tenant's brand settings (requires authentication)
-   * GET /api/tenant-brand
-   */
+  // Get current tenant's brand settings
   @Get()
   @UseGuards(JwtGuard)
   getBrand(@Req() req: any) {
     return this.tenantBrandService.getBrand(req);
   }
 
-  /**
-   * Get brand settings by tenant ID (public endpoint)
-   * GET /api/tenant-brand/tenant/:tenantId
-   */
+  // Get brand settings by tenant ID (public)
   @Get('tenant/:tenantId')
-  getBrandByTenantId(
-    @Param('tenantId', new ParseUUIDPipe({ version: '4' })) tenantId: string,
-  ) {
+  getBrandByTenantId(@Param('tenantId', ParseUUIDPipe) tenantId: string) {
     return this.tenantBrandService.getBrandByTenantId(tenantId);
   }
 
-  /**
-   * Get brand settings by domain (public endpoint for storefront)
-   * GET /api/tenant-brand/domain?domain=example.com
-   */
+  // Get brand settings by domain (public for storefront)
   @Get('domain')
   getBrandByDomain(@Query('domain') domain: string) {
     return this.tenantBrandService.getBrandByDomain(domain);
@@ -67,88 +59,93 @@ export class TenantBrandController {
     return this.tenantBrandService.checkUniqueDomain(domain, req.user.tenantId);
   }
 
-  /**
-   * Create or update brand settings (upsert)
-   * POST /api/tenant-brand
-   */
+  // Create or update brand settings
   @Post()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('TENANT_ADMIN')
   @UseInterceptors(
-    FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          cb(null, './uploads/brands');
+    FileFieldsInterceptor(
+      [
+        { name: 'logo', maxCount: 1 },
+        { name: 'heroImage', maxCount: 1 },
+        { name: 'exclusiveImages', maxCount: 20 },
+      ],
+      {
+        storage: diskStorage({
+          destination: './uploads/brands',
+          filename: (req, file, cb) => {
+            const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
+            cb(null, uniqueName);
+          },
+        }),
+        fileFilter: (req, file, cb) => {
+          if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
+            cb(null, true);
+          } else {
+            cb(new Error('Only image files are allowed!'), false);
+          }
         },
-        filename: (req, file, cb) => {
-          const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-          cb(null, uniqueName);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Only image files are allowed!'), false);
-        }
+        limits: { fileSize: 2 * 1024 * 1024 },
       },
-      limits: {
-        fileSize: 2 * 1024 * 1024, // 2MB limit for logo
-      },
-    }),
+    ),
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   upsertBrand(
     @Body() createTenantBrandDto: CreateTenantBrandDto,
-    @UploadedFile() logo: any,
+    @UploadedFiles() files: any,
     @Req() req: any,
   ) {
-    return this.tenantBrandService.upsertBrand(createTenantBrandDto, logo, req);
+    return this.tenantBrandService.upsertBrand(
+      createTenantBrandDto,
+      files,
+      req,
+    );
   }
 
-  /**
-   * Update brand settings
-   * PATCH /api/tenant-brand
-   */
+  // Update brand settings
   @Patch()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('TENANT_ADMIN')
   @UseInterceptors(
-    FileInterceptor('logo', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          cb(null, './uploads/brands');
+    FileFieldsInterceptor(
+      [
+        { name: 'logo', maxCount: 1 },
+        { name: 'heroImage', maxCount: 1 },
+        { name: 'exclusiveImages', maxCount: 20 },
+      ],
+      {
+        storage: diskStorage({
+          destination: './uploads/brands',
+          filename: (req, file, cb) => {
+            const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
+            cb(null, uniqueName);
+          },
+        }),
+        fileFilter: (req, file, cb) => {
+          if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
+            cb(null, true);
+          } else {
+            cb(new Error('Only image files are allowed!'), false);
+          }
         },
-        filename: (req, file, cb) => {
-          const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-          cb(null, uniqueName);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Only image files are allowed!'), false);
-        }
+        limits: { fileSize: 2 * 1024 * 1024 },
       },
-      limits: {
-        fileSize: 2 * 1024 * 1024, // 2MB limit for logo
-      },
-    }),
+    ),
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   updateBrand(
     @Body() updateTenantBrandDto: UpdateTenantBrandDto,
-    @UploadedFile() logo: any,
+    @UploadedFiles() files: any,
     @Req() req: any,
   ) {
-    return this.tenantBrandService.updateBrand(updateTenantBrandDto, logo, req);
+    return this.tenantBrandService.updateBrand(
+      updateTenantBrandDto,
+      files,
+      req,
+    );
   }
 
-  /**
-   * Delete logo only
-   * DELETE /api/tenant-brand/logo
-   */
+  // Delete logo only
   @Delete('logo')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('TENANT_ADMIN')
@@ -156,10 +153,7 @@ export class TenantBrandController {
     return this.tenantBrandService.deleteLogo(req);
   }
 
-  /**
-   * Delete all brand settings
-   * DELETE /api/tenant-brand
-   */
+  // Delete all brand settings
   @Delete()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('TENANT_ADMIN')

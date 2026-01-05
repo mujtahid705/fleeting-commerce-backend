@@ -31,6 +31,98 @@ export class TenantBrandService implements OnModuleInit {
   }
 
   /**
+   * Helper method to populate category data in customization fields
+   */
+  private async populateCategoryData(brand: any, tenantId: string) {
+    if (!brand) return brand;
+
+    const categories = await this.databaseService.category.findMany({
+      where: { tenantId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        subCategories: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    const result = { ...brand };
+
+    // Process browseCategories
+    if (brand.browseCategories) {
+      if (
+        typeof brand.browseCategories === 'object' &&
+        brand.browseCategories.categories
+      ) {
+        result.browseCategories = {
+          ...brand.browseCategories,
+          categories: brand.browseCategories.categories.map((item: any) => {
+            const category = categories.find(
+              (cat) => cat.id === item.categoryId,
+            );
+            if (category) {
+              return {
+                ...item,
+                category: {
+                  id: category.id,
+                  name: category.name,
+                  slug: category.slug,
+                },
+              };
+            }
+            return item;
+          }),
+        };
+      } else if (Array.isArray(brand.browseCategories)) {
+        result.browseCategories = categories.filter((cat) =>
+          (brand.browseCategories as number[]).includes(cat.id),
+        );
+      }
+    }
+
+    // Process featuredCategories
+    if (brand.featuredCategories) {
+      if (
+        typeof brand.featuredCategories === 'object' &&
+        brand.featuredCategories.categories
+      ) {
+        result.featuredCategories = {
+          ...brand.featuredCategories,
+          categories: brand.featuredCategories.categories.map((item: any) => {
+            const category = categories.find(
+              (cat) => cat.id === item.categoryId,
+            );
+            if (category) {
+              return {
+                ...item,
+                category: {
+                  id: category.id,
+                  name: category.name,
+                  slug: category.slug,
+                },
+              };
+            }
+            return item;
+          }),
+        };
+      } else if (Array.isArray(brand.featuredCategories)) {
+        result.featuredCategories = categories.filter((cat) =>
+          (brand.featuredCategories as number[]).includes(cat.id),
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Get the current tenant's brand settings
    */
   async getBrand(req: any) {
@@ -67,9 +159,11 @@ export class TenantBrandService implements OnModuleInit {
       };
     }
 
+    const populatedBrand = await this.populateCategoryData(brand, tenantId);
+
     return {
       message: 'Brand settings retrieved successfully',
-      data: brand,
+      data: populatedBrand,
     };
   }
 
@@ -112,9 +206,11 @@ export class TenantBrandService implements OnModuleInit {
       };
     }
 
+    const populatedBrand = await this.populateCategoryData(brand, tenantId);
+
     return {
       message: 'Brand settings retrieved successfully',
-      data: brand,
+      data: populatedBrand,
     };
   }
 
@@ -149,10 +245,12 @@ export class TenantBrandService implements OnModuleInit {
       };
     }
 
+    const populatedBrand = await this.populateCategoryData(brand, tenant.id);
+
     return {
       message: 'Brand settings retrieved successfully',
       data: {
-        ...brand,
+        ...populatedBrand,
         tenantName: tenant.name,
         domain: tenant.domain,
       },
@@ -160,11 +258,96 @@ export class TenantBrandService implements OnModuleInit {
   }
 
   /**
+   * Process uploaded files and JSON data from form-data
+   */
+  private processFormData(dto: any, files: any) {
+    const result: any = {};
+
+    // Parse JSON strings from form-data
+    if (dto.hero) {
+      try {
+        result.hero = JSON.parse(dto.hero);
+      } catch (e) {
+        result.hero = dto.hero;
+      }
+    }
+
+    if (dto.browseCategories) {
+      try {
+        result.browseCategories = JSON.parse(dto.browseCategories);
+      } catch (e) {
+        result.browseCategories = dto.browseCategories;
+      }
+    }
+
+    if (dto.exclusiveSection) {
+      try {
+        result.exclusiveSection = JSON.parse(dto.exclusiveSection);
+      } catch (e) {
+        result.exclusiveSection = dto.exclusiveSection;
+      }
+    }
+
+    if (dto.featuredCategories) {
+      try {
+        result.featuredCategories = JSON.parse(dto.featuredCategories);
+      } catch (e) {
+        result.featuredCategories = dto.featuredCategories;
+      }
+    }
+
+    if (dto.footer) {
+      try {
+        result.footer = JSON.parse(dto.footer);
+      } catch (e) {
+        result.footer = dto.footer;
+      }
+    }
+
+    // Process uploaded image files
+    if (files) {
+      // Hero image
+      if (files.heroImage && files.heroImage[0]) {
+        const heroImageUrl = this.getLogoUrl(files.heroImage[0].filename);
+        if (result.hero && typeof result.hero === 'object') {
+          result.hero.backgroundImage = heroImageUrl;
+        }
+      }
+
+      // Exclusive section images
+      if (files.exclusiveImages && files.exclusiveImages.length > 0) {
+        if (
+          result.exclusiveSection &&
+          typeof result.exclusiveSection === 'object' &&
+          Array.isArray(result.exclusiveSection.products)
+        ) {
+          result.exclusiveSection.products =
+            result.exclusiveSection.products.map(
+              (product: any, index: number) => {
+                if (files.exclusiveImages[index]) {
+                  return {
+                    ...product,
+                    customImage: this.getLogoUrl(
+                      files.exclusiveImages[index].filename,
+                    ),
+                  };
+                }
+                return product;
+              },
+            );
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Create or update brand settings for the current tenant
    */
   async upsertBrand(
     createTenantBrandDto: CreateTenantBrandDto,
-    logo: any | undefined,
+    files: any | undefined,
     req: any,
   ) {
     const tenantId = req.user?.tenantId;
@@ -180,7 +363,7 @@ export class TenantBrandService implements OnModuleInit {
 
     let logoUrl: string | undefined;
 
-    if (logo) {
+    if (files && files.logo && files.logo[0]) {
       // Delete old logo if exists
       if (existingBrand?.logoUrl) {
         const oldLogoPath = join(
@@ -195,14 +378,22 @@ export class TenantBrandService implements OnModuleInit {
           }
         }
       }
-      logoUrl = this.getLogoUrl(logo.filename);
+      logoUrl = this.getLogoUrl(files.logo[0].filename);
     }
+
+    // Process form data and files
+    const processedData = this.processFormData(createTenantBrandDto, files);
 
     const brandData = {
       domain: createTenantBrandDto.domain,
       tagline: createTenantBrandDto.tagline,
       description: createTenantBrandDto.description,
       theme: createTenantBrandDto.theme ?? 1,
+      hero: processedData.hero,
+      browseCategories: processedData.browseCategories,
+      exclusiveSection: processedData.exclusiveSection,
+      featuredCategories: processedData.featuredCategories,
+      footer: processedData.footer,
       ...(logoUrl && { logoUrl }),
     };
 
@@ -221,9 +412,14 @@ export class TenantBrandService implements OnModuleInit {
         data: brandData,
       });
 
+      const populatedBrand = await this.populateCategoryData(
+        updatedBrand,
+        tenantId,
+      );
+
       return {
         message: 'Brand settings updated successfully',
-        data: updatedBrand,
+        data: populatedBrand,
       };
     } else {
       // Create new brand
@@ -234,9 +430,14 @@ export class TenantBrandService implements OnModuleInit {
         },
       });
 
+      const populatedBrand = await this.populateCategoryData(
+        newBrand,
+        tenantId,
+      );
+
       return {
         message: 'Brand settings created successfully',
-        data: newBrand,
+        data: populatedBrand,
       };
     }
   }
@@ -246,7 +447,7 @@ export class TenantBrandService implements OnModuleInit {
    */
   async updateBrand(
     updateTenantBrandDto: UpdateTenantBrandDto,
-    logo: any | undefined,
+    files: any | undefined,
     req: any,
   ) {
     const tenantId = req.user?.tenantId;
@@ -267,7 +468,7 @@ export class TenantBrandService implements OnModuleInit {
 
     let logoUrl: string | undefined;
 
-    if (logo) {
+    if (files && files.logo && files.logo[0]) {
       // Delete old logo if exists
       if (existingBrand.logoUrl) {
         const oldLogoPath = join(
@@ -282,8 +483,11 @@ export class TenantBrandService implements OnModuleInit {
           }
         }
       }
-      logoUrl = this.getLogoUrl(logo.filename);
+      logoUrl = this.getLogoUrl(files.logo[0].filename);
     }
+
+    // Process form data and files
+    const processedData = this.processFormData(updateTenantBrandDto, files);
 
     const updateData: any = {};
 
@@ -304,6 +508,21 @@ export class TenantBrandService implements OnModuleInit {
     if (updateTenantBrandDto.theme !== undefined) {
       updateData.theme = updateTenantBrandDto.theme;
     }
+    if (processedData.hero !== undefined) {
+      updateData.hero = processedData.hero;
+    }
+    if (processedData.browseCategories !== undefined) {
+      updateData.browseCategories = processedData.browseCategories;
+    }
+    if (processedData.exclusiveSection !== undefined) {
+      updateData.exclusiveSection = processedData.exclusiveSection;
+    }
+    if (processedData.featuredCategories !== undefined) {
+      updateData.featuredCategories = processedData.featuredCategories;
+    }
+    if (processedData.footer !== undefined) {
+      updateData.footer = processedData.footer;
+    }
     if (logoUrl) {
       updateData.logoUrl = logoUrl;
     }
@@ -313,9 +532,14 @@ export class TenantBrandService implements OnModuleInit {
       data: updateData,
     });
 
+    const populatedBrand = await this.populateCategoryData(
+      updatedBrand,
+      tenantId,
+    );
+
     return {
       message: 'Brand settings updated successfully',
-      data: updatedBrand,
+      data: populatedBrand,
     };
   }
 

@@ -92,7 +92,7 @@ export class OrdersService {
       },
     });
 
-    await this.databaseService.order_Item.createMany({
+    await this.databaseService.orderItem.createMany({
       data: orderItemsData.map((item) => ({
         orderId: newOrder.id,
         ...item,
