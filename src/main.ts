@@ -27,7 +27,10 @@ async function bootstrap() {
         /^https:\/\/.+\.fleetingcommerce\.dev$/,
       ];
 
-      const isAllowed = allowedPatterns.some((pattern) => pattern.test(origin));
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedPatterns.some((pattern) =>
+        pattern.test(normalizedOrigin),
+      );
 
       if (isAllowed) {
         callback(null, true);
