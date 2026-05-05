@@ -25,6 +25,7 @@ import {
 import { RolesGuard } from './guards/roles.guard';
 import { JwtGuard } from './guards/jwt.guard';
 import { Roles } from './decorators/roles.decorator';
+import { JwtPayload } from './types/jwt-payload.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -59,8 +60,14 @@ export class AuthController {
 
   // Register Tenant Admin
   @Post('register/tenant-admin')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('TENANT_ADMIN')
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  registerTenantAdmin(@Body() createTenantAdminDto: CreateTenantAdminDto) {
+  registerTenantAdmin(
+    @Body() createTenantAdminDto: CreateTenantAdminDto,
+    @Req() req: Request & { user: JwtPayload },
+  ) {
+    createTenantAdminDto.tenantId = req.user.tenantId;
     return this.authService.createTenantAdmin(createTenantAdminDto);
   }
 

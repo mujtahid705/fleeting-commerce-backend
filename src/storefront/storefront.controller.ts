@@ -137,6 +137,7 @@ export class StorefrontController {
       domain,
       req.user.id,
       createOrderDto.order_items,
+      createOrderDto.couponCode,
     );
   }
 
