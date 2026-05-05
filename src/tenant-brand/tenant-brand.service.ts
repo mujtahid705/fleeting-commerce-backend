@@ -2,33 +2,20 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateTenantBrandDto, UpdateTenantBrandDto } from './dto';
-import { join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import {
+  FileUploadService,
+  UploadedCloudinaryImage,
+} from 'src/common/services/file-upload.service';
 
 @Injectable()
-export class TenantBrandService implements OnModuleInit {
-  private readonly uploadPath = join(process.cwd(), 'uploads', 'brands');
-
-  constructor(private readonly databaseService: DatabaseService) {}
-
-  onModuleInit() {
-    // Ensure upload directory exists
-    if (!existsSync(this.uploadPath)) {
-      mkdirSync(this.uploadPath, { recursive: true });
-    }
-  }
-
-  getUploadPath(): string {
-    return this.uploadPath;
-  }
-
-  getLogoUrl(filename: string): string {
-    return `/uploads/brands/${filename}`;
-  }
+export class TenantBrandService {
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly fileUploadService: FileUploadService,
+  ) {}
 
   /**
    * Helper method to populate category data in customization fields
@@ -257,13 +244,9 @@ export class TenantBrandService implements OnModuleInit {
     };
   }
 
-  /**
-   * Process uploaded files and JSON data from form-data
-   */
-  private processFormData(dto: any, files: any) {
+  private parseFormData(dto: any) {
     const result: any = {};
 
-    // Parse JSON strings from form-data
     if (dto.hero) {
       try {
         result.hero = JSON.parse(dto.hero);
@@ -304,42 +287,124 @@ export class TenantBrandService implements OnModuleInit {
       }
     }
 
-    // Process uploaded image files
-    if (files) {
-      // Hero image
-      if (files.heroImage && files.heroImage[0]) {
-        const heroImageUrl = this.getLogoUrl(files.heroImage[0].filename);
-        if (result.hero && typeof result.hero === 'object') {
-          result.hero.backgroundImage = heroImageUrl;
+    return result;
+  }
+
+  /**
+   * Process uploaded files and JSON data from form-data
+   */
+  private async processFormData(
+    dto: any,
+    files: any,
+    tenantId: string,
+  ): Promise<{ data: any; uploadedPublicIds: string[] }> {
+    const result = this.parseFormData(dto);
+    const uploadedPublicIds: string[] = [];
+    const brandFolder = this.fileUploadService.getBrandFolder(tenantId);
+
+    try {
+      if (files) {
+        if (files.heroImage && files.heroImage[0]) {
+          if (result.hero && typeof result.hero === 'object') {
+            const heroImage = await this.fileUploadService.uploadImage(
+              files.heroImage[0],
+              brandFolder,
+              'brand-hero',
+            );
+            uploadedPublicIds.push(heroImage.publicId);
+            result.hero.backgroundImage = heroImage.optimizedUrl;
+            result.hero.backgroundImagePublicId = heroImage.publicId;
+          }
+        }
+
+        if (files.exclusiveImages && files.exclusiveImages.length > 0) {
+          if (
+            result.exclusiveSection &&
+            typeof result.exclusiveSection === 'object' &&
+            Array.isArray(result.exclusiveSection.products)
+          ) {
+            result.exclusiveSection.products =
+              result.exclusiveSection.products.map(
+                async (product: any, index: number) => {
+                  if (files.exclusiveImages[index]) {
+                    const exclusiveImage =
+                      await this.fileUploadService.uploadImage(
+                        files.exclusiveImages[index],
+                        brandFolder,
+                        'brand-exclusive',
+                      );
+                    uploadedPublicIds.push(exclusiveImage.publicId);
+
+                    return {
+                      ...product,
+                      customImage: exclusiveImage.optimizedUrl,
+                      customImagePublicId: exclusiveImage.publicId,
+                    };
+                  }
+                  return product;
+                },
+              );
+            result.exclusiveSection.products = await Promise.all(
+              result.exclusiveSection.products,
+            );
+          }
         }
       }
+    } catch (error) {
+      await this.fileUploadService.deleteImages(uploadedPublicIds);
+      throw error;
+    }
 
-      // Exclusive section images
-      if (files.exclusiveImages && files.exclusiveImages.length > 0) {
-        if (
-          result.exclusiveSection &&
-          typeof result.exclusiveSection === 'object' &&
-          Array.isArray(result.exclusiveSection.products)
-        ) {
-          result.exclusiveSection.products =
-            result.exclusiveSection.products.map(
-              (product: any, index: number) => {
-                if (files.exclusiveImages[index]) {
-                  return {
-                    ...product,
-                    customImage: this.getLogoUrl(
-                      files.exclusiveImages[index].filename,
-                    ),
-                  };
-                }
-                return product;
-              },
-            );
+    return { data: result, uploadedPublicIds };
+  }
+
+  private collectBrandPublicIds(brand: any): string[] {
+    const publicIds: string[] = [];
+
+    if (brand?.logoPublicId) publicIds.push(brand.logoPublicId);
+
+    if (brand?.hero?.backgroundImagePublicId) {
+      publicIds.push(brand.hero.backgroundImagePublicId);
+    }
+
+    if (Array.isArray(brand?.exclusiveSection?.products)) {
+      for (const product of brand.exclusiveSection.products) {
+        if (product?.customImagePublicId) {
+          publicIds.push(product.customImagePublicId);
         }
       }
     }
 
-    return result;
+    return publicIds;
+  }
+
+  private collectReplacedBrandPublicIds(
+    existingBrand: any,
+    files: any,
+    logoUpload?: UploadedCloudinaryImage,
+  ): string[] {
+    const publicIds: string[] = [];
+
+    if (logoUpload && existingBrand?.logoPublicId) {
+      publicIds.push(existingBrand.logoPublicId);
+    }
+
+    if (files?.heroImage?.[0] && existingBrand?.hero?.backgroundImagePublicId) {
+      publicIds.push(existingBrand.hero.backgroundImagePublicId);
+    }
+
+    if (
+      files?.exclusiveImages?.length &&
+      Array.isArray(existingBrand?.exclusiveSection?.products)
+    ) {
+      for (let index = 0; index < files.exclusiveImages.length; index += 1) {
+        const publicId =
+          existingBrand.exclusiveSection.products[index]?.customImagePublicId;
+        if (publicId) publicIds.push(publicId);
+      }
+    }
+
+    return publicIds;
   }
 
   /**
@@ -361,28 +426,31 @@ export class TenantBrandService implements OnModuleInit {
       where: { tenantId },
     });
 
-    let logoUrl: string | undefined;
+    let logoUpload: UploadedCloudinaryImage | undefined;
+    const uploadedPublicIds: string[] = [];
 
     if (files && files.logo && files.logo[0]) {
-      // Delete old logo if exists
-      if (existingBrand?.logoUrl) {
-        const oldLogoPath = join(
-          process.cwd(),
-          existingBrand.logoUrl.replace(/^\//, ''),
-        );
-        if (existsSync(oldLogoPath)) {
-          try {
-            unlinkSync(oldLogoPath);
-          } catch (error) {
-            console.error('Error deleting old logo:', error);
-          }
-        }
-      }
-      logoUrl = this.getLogoUrl(files.logo[0].filename);
+      logoUpload = await this.fileUploadService.uploadImage(
+        files.logo[0],
+        this.fileUploadService.getBrandFolder(tenantId),
+        'brand-logo',
+      );
+      uploadedPublicIds.push(logoUpload.publicId);
     }
 
-    // Process form data and files
-    const processedData = this.processFormData(createTenantBrandDto, files);
+    let processedFormData: { data: any; uploadedPublicIds: string[] };
+    try {
+      processedFormData = await this.processFormData(
+        createTenantBrandDto,
+        files,
+        tenantId,
+      );
+    } catch (error) {
+      await this.fileUploadService.deleteImages(uploadedPublicIds);
+      throw error;
+    }
+    const processedData = processedFormData.data;
+    uploadedPublicIds.push(...processedFormData.uploadedPublicIds);
 
     const brandData = {
       domain: createTenantBrandDto.domain,
@@ -394,51 +462,60 @@ export class TenantBrandService implements OnModuleInit {
       exclusiveSection: processedData.exclusiveSection,
       featuredCategories: processedData.featuredCategories,
       footer: processedData.footer,
-      ...(logoUrl && { logoUrl }),
+      ...(logoUpload && {
+        logoUrl: logoUpload.optimizedUrl,
+        logoPublicId: logoUpload.publicId,
+      }),
     };
 
-    // If domain is provided, also update the Tenant table
-    if (createTenantBrandDto.domain) {
-      await this.databaseService.tenant.update({
-        where: { id: tenantId },
-        data: { domain: createTenantBrandDto.domain },
-      });
-    }
+    try {
+      const savedBrand = await this.databaseService.$transaction(async (tx) => {
+        if (createTenantBrandDto.domain) {
+          await (tx as any).tenant.update({
+            where: { id: tenantId },
+            data: { domain: createTenantBrandDto.domain },
+          });
+        }
 
-    if (existingBrand) {
-      // Update existing brand
-      const updatedBrand = await this.databaseService.tenantBrand.update({
-        where: { tenantId },
-        data: brandData,
+        if (existingBrand) {
+          return (tx as any).tenantBrand.update({
+            where: { tenantId },
+            data: brandData,
+          });
+        }
+
+        return (tx as any).tenantBrand.create({
+          data: {
+            tenantId,
+            ...brandData,
+          },
+        });
       });
+
+      if (existingBrand) {
+        await this.fileUploadService.deleteImages(
+          this.collectReplacedBrandPublicIds(
+            existingBrand,
+            files,
+            logoUpload,
+          ),
+        );
+      }
 
       const populatedBrand = await this.populateCategoryData(
-        updatedBrand,
+        savedBrand,
         tenantId,
       );
 
       return {
-        message: 'Brand settings updated successfully',
+        message: existingBrand
+          ? 'Brand settings updated successfully'
+          : 'Brand settings created successfully',
         data: populatedBrand,
       };
-    } else {
-      // Create new brand
-      const newBrand = await this.databaseService.tenantBrand.create({
-        data: {
-          tenantId,
-          ...brandData,
-        },
-      });
-
-      const populatedBrand = await this.populateCategoryData(
-        newBrand,
-        tenantId,
-      );
-
-      return {
-        message: 'Brand settings created successfully',
-        data: populatedBrand,
-      };
+    } catch (error) {
+      await this.fileUploadService.deleteImages(uploadedPublicIds);
+      throw error;
     }
   }
 
@@ -466,38 +543,36 @@ export class TenantBrandService implements OnModuleInit {
       );
     }
 
-    let logoUrl: string | undefined;
+    let logoUpload: UploadedCloudinaryImage | undefined;
+    const uploadedPublicIds: string[] = [];
 
     if (files && files.logo && files.logo[0]) {
-      // Delete old logo if exists
-      if (existingBrand.logoUrl) {
-        const oldLogoPath = join(
-          process.cwd(),
-          existingBrand.logoUrl.replace(/^\//, ''),
-        );
-        if (existsSync(oldLogoPath)) {
-          try {
-            unlinkSync(oldLogoPath);
-          } catch (error) {
-            console.error('Error deleting old logo:', error);
-          }
-        }
-      }
-      logoUrl = this.getLogoUrl(files.logo[0].filename);
+      logoUpload = await this.fileUploadService.uploadImage(
+        files.logo[0],
+        this.fileUploadService.getBrandFolder(tenantId),
+        'brand-logo',
+      );
+      uploadedPublicIds.push(logoUpload.publicId);
     }
 
-    // Process form data and files
-    const processedData = this.processFormData(updateTenantBrandDto, files);
+    let processedFormData: { data: any; uploadedPublicIds: string[] };
+    try {
+      processedFormData = await this.processFormData(
+        updateTenantBrandDto,
+        files,
+        tenantId,
+      );
+    } catch (error) {
+      await this.fileUploadService.deleteImages(uploadedPublicIds);
+      throw error;
+    }
+    const processedData = processedFormData.data;
+    uploadedPublicIds.push(...processedFormData.uploadedPublicIds);
 
     const updateData: any = {};
 
     if (updateTenantBrandDto.domain !== undefined) {
       updateData.domain = updateTenantBrandDto.domain;
-      // Also update the Tenant table
-      await this.databaseService.tenant.update({
-        where: { id: tenantId },
-        data: { domain: updateTenantBrandDto.domain },
-      });
     }
     if (updateTenantBrandDto.tagline !== undefined) {
       updateData.tagline = updateTenantBrandDto.tagline;
@@ -523,24 +598,45 @@ export class TenantBrandService implements OnModuleInit {
     if (processedData.footer !== undefined) {
       updateData.footer = processedData.footer;
     }
-    if (logoUrl) {
-      updateData.logoUrl = logoUrl;
+    if (logoUpload) {
+      updateData.logoUrl = logoUpload.optimizedUrl;
+      updateData.logoPublicId = logoUpload.publicId;
     }
 
-    const updatedBrand = await this.databaseService.tenantBrand.update({
-      where: { tenantId },
-      data: updateData,
-    });
+    try {
+      const updatedBrand = await this.databaseService.$transaction(
+        async (tx) => {
+          if (updateTenantBrandDto.domain !== undefined) {
+            await (tx as any).tenant.update({
+              where: { id: tenantId },
+              data: { domain: updateTenantBrandDto.domain },
+            });
+          }
 
-    const populatedBrand = await this.populateCategoryData(
-      updatedBrand,
-      tenantId,
-    );
+          return (tx as any).tenantBrand.update({
+            where: { tenantId },
+            data: updateData,
+          });
+        },
+      );
 
-    return {
-      message: 'Brand settings updated successfully',
-      data: populatedBrand,
-    };
+      await this.fileUploadService.deleteImages(
+        this.collectReplacedBrandPublicIds(existingBrand, files, logoUpload),
+      );
+
+      const populatedBrand = await this.populateCategoryData(
+        updatedBrand,
+        tenantId,
+      );
+
+      return {
+        message: 'Brand settings updated successfully',
+        data: populatedBrand,
+      };
+    } catch (error) {
+      await this.fileUploadService.deleteImages(uploadedPublicIds);
+      throw error;
+    }
   }
 
   /**
@@ -568,23 +664,14 @@ export class TenantBrandService implements OnModuleInit {
       };
     }
 
-    // Delete the logo file
-    const logoPath = join(
-      process.cwd(),
-      existingBrand.logoUrl.replace(/^\//, ''),
-    );
-    if (existsSync(logoPath)) {
-      try {
-        unlinkSync(logoPath);
-      } catch (error) {
-        console.error('Error deleting logo:', error);
-      }
-    }
-
     const updatedBrand = await this.databaseService.tenantBrand.update({
       where: { tenantId },
-      data: { logoUrl: null },
+      data: { logoUrl: null, logoPublicId: null } as any,
     });
+
+    await this.fileUploadService.deleteImage(
+      (existingBrand as any).logoPublicId,
+    );
 
     return {
       message: 'Logo deleted successfully',
@@ -610,24 +697,13 @@ export class TenantBrandService implements OnModuleInit {
       throw new NotFoundException('Brand settings not found');
     }
 
-    // Delete the logo file if exists
-    if (existingBrand.logoUrl) {
-      const logoPath = join(
-        process.cwd(),
-        existingBrand.logoUrl.replace(/^\//, ''),
-      );
-      if (existsSync(logoPath)) {
-        try {
-          unlinkSync(logoPath);
-        } catch (error) {
-          console.error('Error deleting logo:', error);
-        }
-      }
-    }
+    const publicIds = this.collectBrandPublicIds(existingBrand);
 
     await this.databaseService.tenantBrand.delete({
       where: { tenantId },
     });
+
+    await this.fileUploadService.deleteImages(publicIds);
 
     return {
       message: 'Brand settings deleted successfully',

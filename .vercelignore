@@ -1,0 +1,8 @@
+generated
+uploads
+coverage
+.idea
+.vscode
+*.log
+test
+scripts

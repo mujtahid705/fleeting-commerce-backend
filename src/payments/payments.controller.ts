@@ -48,8 +48,10 @@ export class PaymentsController {
         `${this.frontendUrl}/payment/success?transactionId=${tran_id}`,
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(error.message)}`,
+        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
       );
     }
   }
@@ -64,8 +66,10 @@ export class PaymentsController {
         `${this.frontendUrl}/payment/failed?transactionId=${tran_id}`,
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(error.message)}`,
+        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
       );
     }
   }
@@ -83,8 +87,10 @@ export class PaymentsController {
         `${this.frontendUrl}/payment/cancelled?transactionId=${tran_id}`,
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(error.message)}`,
+        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
       );
     }
   }
@@ -102,17 +108,22 @@ export class PaymentsController {
   // Get payment history
   @Get('history')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('TENANT_ADMIN')
+  @Roles('TENANT_ADMIN', 'SUPER_ADMIN')
   getHistory(@Req() req: any) {
-    return this.paymentsService.getPaymentHistory(req.user.tenantId);
+    return this.paymentsService.getPaymentHistory(
+      req.user.role === 'SUPER_ADMIN' ? undefined : req.user.tenantId,
+    );
   }
 
   // Get single payment
   @Get(':id')
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles('TENANT_ADMIN')
+  @Roles('TENANT_ADMIN', 'SUPER_ADMIN')
   getPayment(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
-    return this.paymentsService.getPayment(req.user.tenantId, id);
+    return this.paymentsService.getPayment(
+      req.user.role === 'SUPER_ADMIN' ? undefined : req.user.tenantId,
+      id,
+    );
   }
 
   // Manual verification (dev/testing only)

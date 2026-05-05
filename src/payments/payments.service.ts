@@ -326,10 +326,17 @@ export class PaymentsService {
   }
 
   // Get payment history
-  async getPaymentHistory(tenantId: string) {
+  async getPaymentHistory(tenantId?: string) {
     const payments = await this.databaseService.payment.findMany({
-      where: { tenantId },
+      where: tenantId ? { tenantId } : {},
       include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            domain: true,
+          },
+        },
         subscription: { include: { plan: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -339,10 +346,20 @@ export class PaymentsService {
   }
 
   // Get single payment
-  async getPayment(tenantId: string, paymentId: string) {
+  async getPayment(tenantId: string | undefined, paymentId: string) {
     const payment = await this.databaseService.payment.findFirst({
-      where: { id: paymentId, tenantId },
+      where: {
+        id: paymentId,
+        ...(tenantId && { tenantId }),
+      },
       include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            domain: true,
+          },
+        },
         subscription: { include: { plan: true } },
       },
     });
