@@ -46,6 +46,8 @@ async function bootstrap() {
       'Authorization',
       'x-tenant-domain',
       'domain',
+      'Cache-Control',
+      'Pragma',
     ],
   });
 

@@ -9,16 +9,23 @@ import { DatabaseService } from 'src/database/database.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Status } from 'generated/prisma';
+import { DiscountsService } from 'src/discounts/discounts.service';
+import { decrementInventoryForOrder } from 'src/orders/order-inventory.util';
 
 @Injectable()
 export class StorefrontService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
+    private readonly discountsService: DiscountsService,
   ) {}
 
   // Helpers
   private async getTenantIdByDomain(domain: string): Promise<string> {
+    if (!domain) {
+      throw new BadRequestException('Tenant domain header is required');
+    }
+
     const tenant = await this.databaseService.tenant.findUnique({
       where: { domain },
       select: { id: true, isActive: true },
@@ -167,10 +174,14 @@ export class StorefrontService {
         quantity: item.quantity,
       },
     }));
+    const data = await this.discountsService.decorateProductsWithPricing(
+      tenantId,
+      products,
+    );
 
     return {
       message: 'Products fetched successfully',
-      data: products,
+      data,
     };
   }
 
@@ -222,10 +233,14 @@ export class StorefrontService {
         quantity: inventoryItem.quantity,
       },
     };
+    const [data] = await this.discountsService.decorateProductsWithPricing(
+      tenantId,
+      [product],
+    );
 
     return {
       message: 'Product fetched successfully',
-      data: product,
+      data,
     };
   }
 
@@ -368,6 +383,11 @@ export class StorefrontService {
                 title: true,
                 slug: true,
                 price: true,
+                inventory: {
+                  select: {
+                    quantity: true,
+                  },
+                },
                 images: {
                   where: { isActive: true },
                   orderBy: { order: 'asc' },
@@ -402,48 +422,47 @@ export class StorefrontService {
     domain: string,
     userId: string,
     orderItems: { productId: string; quantity: number }[],
+    couponCode?: string,
   ) {
     const tenantId = await this.getTenantIdByDomain(domain);
 
-    const productIds = orderItems.map((item) => item.productId);
-    const products = await this.databaseService.product.findMany({
-      where: {
-        id: { in: productIds },
-        tenantId,
-        isActive: true,
-      },
-    });
+    const pricing = await this.discountsService.calculateOrderPricing(
+      tenantId,
+      orderItems,
+      couponCode,
+    );
 
-    if (products.length !== productIds.length) {
-      throw new NotFoundException('One or more products not found');
-    }
+    const newOrder = await this.databaseService.$transaction(async (tx) => {
+      const order = await (tx as any).order.create({
+        data: {
+          userId,
+          tenantId,
+          subtotalAmount: pricing.subtotalAmount,
+          saleDiscountAmount: pricing.saleDiscountAmount,
+          couponDiscount: pricing.couponDiscount,
+          discountAmount: pricing.discountAmount,
+          couponCode: pricing.coupon?.code || null,
+          totalAmount: pricing.totalAmount,
+        },
+      });
 
-    const productPriceMap = new Map(products.map((p) => [p.id, p.price]));
+      await (tx as any).orderItem.createMany({
+        data: pricing.orderItemsData.map((item) => ({
+          orderId: order.id,
+          ...item,
+        })),
+      });
 
-    let totalAmount = 0;
-    const orderItemsData = orderItems.map((item) => {
-      const unitPrice = productPriceMap.get(item.productId);
-      totalAmount += Number(unitPrice) * item.quantity;
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: Number(unitPrice),
-      };
-    });
+      await decrementInventoryForOrder(tx, tenantId, pricing.orderItemsData);
 
-    const newOrder = await this.databaseService.order.create({
-      data: {
-        userId,
-        tenantId,
-        totalAmount,
-      },
-    });
+      if (pricing.coupon?.id) {
+        await (tx as any).coupon.update({
+          where: { id: pricing.coupon.id },
+          data: { usedCount: { increment: 1 } },
+        });
+      }
 
-    await this.databaseService.orderItem.createMany({
-      data: orderItemsData.map((item) => ({
-        orderId: newOrder.id,
-        ...item,
-      })),
+      return order;
     });
 
     const createdOrder = await this.databaseService.order.findUnique({
@@ -457,6 +476,11 @@ export class StorefrontService {
                 title: true,
                 slug: true,
                 price: true,
+                inventory: {
+                  select: {
+                    quantity: true,
+                  },
+                },
                 images: {
                   where: { isActive: true },
                   orderBy: { order: 'asc' },

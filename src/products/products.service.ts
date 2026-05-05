@@ -8,6 +8,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { FileUploadService } from 'src/common/services/file-upload.service';
 import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { DiscountsService } from 'src/discounts/discounts.service';
 
 @Injectable()
 export class ProductsService {
@@ -15,6 +16,7 @@ export class ProductsService {
     private readonly databaseService: DatabaseService,
     private readonly fileUploadService: FileUploadService,
     private readonly limitChecker: LimitCheckerService,
+    private readonly discountsService: DiscountsService,
   ) {}
 
   // Find all products
@@ -34,11 +36,16 @@ export class ProductsService {
         subCategory: true,
       },
     });
+    const data = await this.discountsService.decorateProductsWithPricing(
+      req.user?.tenantId,
+      products,
+    );
+
     return {
       message: 'Products fetched successfully',
       categoryId,
       subCategoryId,
-      data: products,
+      data,
     };
   }
 
@@ -59,7 +66,12 @@ export class ProductsService {
 
       if (!product) throw new NotFoundException('Product not found');
 
-      return { message: 'Product fetched successfully', data: product };
+      const [data] = await this.discountsService.decorateProductsWithPricing(
+        req.user?.tenantId,
+        [product],
+      );
+
+      return { message: 'Product fetched successfully', data };
     } catch (err) {
       // Re-throw NotFound; wrap Prisma-style errors to avoid leaking internals
       if (err instanceof NotFoundException) throw err;

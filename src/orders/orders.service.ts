@@ -7,10 +7,15 @@ import {
 import { DatabaseService } from 'src/database/database.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { DiscountsService } from 'src/discounts/discounts.service';
+import { decrementInventoryForOrder } from './order-inventory.util';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly discountsService: DiscountsService,
+  ) {}
 
   // Get all orders (for TENANT_ADMIN - gets all orders for their tenant)
   async findAll(req: any) {
@@ -48,62 +53,66 @@ export class OrdersService {
 
   // Create Order
   async create(createOrderDto: CreateOrderDto, req: any) {
-    // Validate that all products belong to the user's tenant
-    const productIds = createOrderDto.order_items.map((item) => item.productId);
-    const products = await this.databaseService.product.findMany({
-      where: { id: { in: productIds } },
-    });
-
-    // Check all products exist
-    if (products.length !== productIds.length) {
-      throw new NotFoundException('One or more products not found');
-    }
-
-    // Check all products belong to the user's tenant
-    const invalidProducts = products.filter(
-      (p) => p.tenantId !== req.user.tenantId,
+    const pricing = await this.discountsService.calculateOrderPricing(
+      req.user.tenantId,
+      createOrderDto.order_items,
+      createOrderDto.couponCode,
     );
-    if (invalidProducts.length > 0) {
-      throw new UnauthorizedException(
-        'You cannot order products from another tenant',
+
+    const newOrder = await this.databaseService.$transaction(async (tx) => {
+      const order = await (tx as any).order.create({
+        data: {
+          userId: req.user.id,
+          tenantId: req.user.tenantId,
+          subtotalAmount: pricing.subtotalAmount,
+          saleDiscountAmount: pricing.saleDiscountAmount,
+          couponDiscount: pricing.couponDiscount,
+          discountAmount: pricing.discountAmount,
+          couponCode: pricing.coupon?.code || null,
+          totalAmount: pricing.totalAmount,
+        },
+      });
+
+      await (tx as any).orderItem.createMany({
+        data: pricing.orderItemsData.map((item) => ({
+          orderId: order.id,
+          ...item,
+        })),
+      });
+
+      await decrementInventoryForOrder(
+        tx,
+        req.user.tenantId,
+        pricing.orderItemsData,
       );
-    }
 
-    // Create a map of productId -> price for quick lookup
-    const productPriceMap = new Map(products.map((p) => [p.id, p.price]));
+      if (pricing.coupon?.id) {
+        await (tx as any).coupon.update({
+          where: { id: pricing.coupon.id },
+          data: { usedCount: { increment: 1 } },
+        });
+      }
 
-    // Calculate total amount from product prices
-    let totalAmount = 0;
-    const orderItemsData = createOrderDto.order_items.map((item) => {
-      const unitPrice = productPriceMap.get(item.productId);
-      totalAmount += Number(unitPrice) * item.quantity;
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: Number(unitPrice),
-      };
-    });
-
-    const newOrder = await this.databaseService.order.create({
-      data: {
-        userId: req.user.id,
-        tenantId: req.user.tenantId,
-        totalAmount,
-      },
-    });
-
-    await this.databaseService.orderItem.createMany({
-      data: orderItemsData.map((item) => ({
-        orderId: newOrder.id,
-        ...item,
-      })),
+      return order;
     });
 
     // Fetch the complete order with order items
     const createdOrder = await this.databaseService.order.findUnique({
       where: { id: newOrder.id },
       include: {
-        order_items: { include: { product: true } },
+        order_items: {
+          include: {
+            product: {
+              include: {
+                inventory: {
+                  select: {
+                    quantity: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         user: true,
       },
     });

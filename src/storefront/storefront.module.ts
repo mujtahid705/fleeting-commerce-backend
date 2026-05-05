@@ -4,10 +4,12 @@ import { StorefrontService } from './storefront.service';
 import { DatabaseModule } from 'src/database/database.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DiscountsModule } from 'src/discounts/discounts.module';
 
 @Module({
   imports: [
     DatabaseModule,
+    DiscountsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
