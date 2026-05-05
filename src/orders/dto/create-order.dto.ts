@@ -1,4 +1,4 @@
-import { IsArray, ValidateNested } from 'class-validator';
+import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { OrderItemsDto } from './order-items.dto';
 import { Type } from 'class-transformer';
 
@@ -7,4 +7,8 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemsDto)
   order_items: OrderItemsDto[];
+
+  @IsString()
+  @IsOptional()
+  couponCode?: string;
 }

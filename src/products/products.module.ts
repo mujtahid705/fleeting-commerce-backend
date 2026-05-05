@@ -5,11 +5,13 @@ import { ProductsService } from './products.service';
 import { DatabaseModule } from 'src/database/database.module';
 import { CommonModule } from 'src/common/common.module';
 import { FileUploadService } from 'src/common/services/file-upload.service';
+import { DiscountsModule } from 'src/discounts/discounts.module';
 
 @Module({
   imports: [
     DatabaseModule,
     CommonModule,
+    DiscountsModule,
     MulterModule.registerAsync({
       imports: [CommonModule],
       inject: [FileUploadService],

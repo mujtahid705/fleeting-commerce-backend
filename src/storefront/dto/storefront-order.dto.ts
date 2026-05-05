@@ -2,6 +2,7 @@ import {
   IsArray,
   IsEnum,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
   ValidateNested,
@@ -23,6 +24,10 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   order_items: OrderItemDto[];
+
+  @IsString()
+  @IsOptional()
+  couponCode?: string;
 }
 
 export class UpdateOrderStatusDto {
