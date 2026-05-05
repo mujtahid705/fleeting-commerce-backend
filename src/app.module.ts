@@ -18,6 +18,7 @@ import { MailModule } from './mail/mail.module';
 import { TenantBrandModule } from './tenant-brand/tenant-brand.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { DiscountsModule } from './discounts/discounts.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { DiscountsModule } from './discounts/discounts.module';
     DiscountsModule,
     StorefrontModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}
