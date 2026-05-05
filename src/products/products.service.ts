@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { CreateProductDto } from './dto/create-product.dto';
-import { FileUploadService } from 'src/common/services/file-upload.service';
+import {
+  FileUploadService,
+  UploadedImageFile,
+} from 'src/common/services/file-upload.service';
 import { LimitCheckerService } from 'src/common/services/limit-checker.service';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { DiscountsService } from 'src/discounts/discounts.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ProductsService {
@@ -80,7 +84,11 @@ export class ProductsService {
   }
 
   // Create new product
-  async create(createProductDto: CreateProductDto, images: any[], req: any) {
+  async create(
+    createProductDto: CreateProductDto,
+    images: UploadedImageFile[],
+    req: any,
+  ) {
     const { title, description, price, categoryId, subCategoryId, brand } =
       createProductDto;
 
@@ -122,59 +130,65 @@ export class ProductsService {
     const baseSlug = this.generateSlug(title);
     const slug = await this.getUniqueSlug(baseSlug);
 
-    // Create product
-    const product = await this.databaseService.product.create({
-      data: {
-        title,
-        slug,
-        description,
-        price,
-        categoryId,
-        subCategoryId,
-        brand,
-        tenantId,
-      },
-    });
+    const productId = randomUUID();
+    const uploadedImages = await this.fileUploadService.uploadImages(
+      images,
+      this.fileUploadService.getProductFolder(tenantId, productId),
+      'product',
+    );
 
-    // Handle images if provided
-    if (images && images.length > 0) {
-      const imageData = images.map((image, index) => {
-        if (!image.filename) {
-          console.error(`Image ${index} has no filename:`, image);
-          throw new Error(`Image ${index} was not uploaded properly`);
-        }
+    try {
+      const createdProduct = await this.databaseService.$transaction(
+        async (tx) => {
+          await (tx as any).product.create({
+            data: {
+              id: productId,
+              title,
+              slug,
+              description,
+              price,
+              categoryId,
+              subCategoryId,
+              brand,
+              tenantId,
+            },
+          });
 
-        const imageUrl = this.fileUploadService.getImageUrl(image.filename);
+          if (uploadedImages.length > 0) {
+            await (tx as any).productImage.createMany({
+              data: uploadedImages.map((image, index) => ({
+                productId,
+                imageUrl: image.optimizedUrl,
+                cloudinaryPublicId: image.publicId,
+                order: index,
+              })),
+            });
+          }
 
-        return {
-          productId: product.id,
-          imageUrl,
-          order: index,
-        };
-      });
-
-      await this.databaseService.productImage.createMany({
-        data: imageData,
-      });
-    }
-
-    // Return created product with images
-    const createdProduct = await this.databaseService.product.findUnique({
-      where: { id: product.id },
-      include: {
-        images: {
-          where: { isActive: true },
-          orderBy: { order: 'asc' },
+          return (tx as any).product.findUnique({
+            where: { id: productId },
+            include: {
+              images: {
+                where: { isActive: true },
+                orderBy: { order: 'asc' },
+              },
+              category: true,
+              subCategory: true,
+            },
+          });
         },
-        category: true,
-        subCategory: true,
-      },
-    });
+      );
 
-    return {
-      message: 'Product created successfully',
-      data: createdProduct,
-    };
+      return {
+        message: 'Product created successfully',
+        data: createdProduct,
+      };
+    } catch (error) {
+      await this.fileUploadService.deleteImages(
+        uploadedImages.map((image) => image.publicId),
+      );
+      throw error;
+    }
   }
 
   private generateSlug(title: string): string {
@@ -211,7 +225,7 @@ export class ProductsService {
   async update(
     id: string,
     updateProductDto: UpdateProductDto,
-    images: any[],
+    images: UploadedImageFile[],
     req: any,
   ) {
     const existingProduct = await this.databaseService.product.findUnique({
@@ -239,53 +253,70 @@ export class ProductsService {
       dataToUpdate.slug = await this.getUniqueSlug(newBase);
     }
 
-    const updatedProduct = await this.databaseService.product.update({
-      where: { id },
-      data: dataToUpdate,
-    });
+    const uploadedImages = await this.fileUploadService.uploadImages(
+      images,
+      this.fileUploadService.getProductFolder(existingProduct.tenantId, id),
+      'product',
+    );
 
-    if (images && images.length > 0) {
-      // Soft-deactivate existing images
-      await this.databaseService.productImage.updateMany({
-        where: { productId: id, isActive: true },
-        data: { isActive: false },
-      });
+    try {
+      const fresh = await this.databaseService.$transaction(async (tx) => {
+        await (tx as any).product.update({
+          where: { id },
+          data: dataToUpdate,
+        });
 
-      const newImageData = images.map((image, index) => {
-        if (!image.filename) {
-          throw new Error(`Image ${index} was not uploaded properly`);
+        if (uploadedImages.length > 0) {
+          await (tx as any).productImage.updateMany({
+            where: { productId: id, isActive: true },
+            data: { isActive: false },
+          });
+
+          await (tx as any).productImage.createMany({
+            data: uploadedImages.map((image, index) => ({
+              productId: id,
+              imageUrl: image.optimizedUrl,
+              cloudinaryPublicId: image.publicId,
+              order: index,
+            })),
+          });
         }
-        return {
-          productId: id,
-          imageUrl: this.fileUploadService.getImageUrl(image.filename),
-          order: index,
-        };
+
+        return (tx as any).product.findUnique({
+          where: { id },
+          include: {
+            images: {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+            },
+            category: true,
+            subCategory: true,
+          },
+        });
       });
 
-      await this.databaseService.productImage.createMany({
-        data: newImageData,
-      });
+      if (uploadedImages.length > 0) {
+        await this.fileUploadService.deleteImages(
+          existingProduct.images
+            .filter((image) => image.isActive)
+            .map((image) => (image as any).cloudinaryPublicId),
+        );
+      }
+
+      return { message: 'Product updated successfully', data: fresh };
+    } catch (error) {
+      await this.fileUploadService.deleteImages(
+        uploadedImages.map((image) => image.publicId),
+      );
+      throw error;
     }
-
-    const fresh = await this.databaseService.product.findUnique({
-      where: { id },
-      include: {
-        images: {
-          where: { isActive: true },
-          orderBy: { order: 'asc' },
-        },
-        category: true,
-        subCategory: true,
-      },
-    });
-
-    return { message: 'Product updated successfully', data: fresh };
   }
 
   // Delete Product
   async delete(id: string, req: any) {
     const product = await this.databaseService.product.findUnique({
       where: { id },
+      include: { images: true },
     });
 
     if (!product) throw new NotFoundException('Product not found!');
@@ -300,6 +331,10 @@ export class ProductsService {
     const deletedProduct = await this.databaseService.product.delete({
       where: { id },
     });
+
+    await this.fileUploadService.deleteImages(
+      product.images.map((image) => (image as any).cloudinaryPublicId),
+    );
 
     return { message: 'Product deleted successfully', data: deletedProduct };
   }

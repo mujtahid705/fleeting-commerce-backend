@@ -19,17 +19,14 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
-import { FileUploadService } from 'src/common/services/file-upload.service';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UploadedImageFile } from 'src/common/services/file-upload.service';
 
 @Controller('products')
 export class ProductsController {
-  constructor(
-    private readonly productsService: ProductsService,
-    private readonly fileUploadService: FileUploadService,
-  ) {}
+  constructor(private readonly productsService: ProductsService) {}
 
   // Get all products
   @Get('all')
@@ -60,7 +57,7 @@ export class ProductsController {
   @UsePipes(new ValidationPipe({ transform: true }))
   createProduct(
     @Body() createProductDto: CreateProductDto,
-    @UploadedFiles() images: any[],
+    @UploadedFiles() images: UploadedImageFile[],
     @Req() req: any,
   ) {
     return this.productsService.create(createProductDto, images, req);
@@ -74,7 +71,7 @@ export class ProductsController {
   updateProduct(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() updateProductDto: UpdateProductDto,
-    @UploadedFiles() images: any[],
+    @UploadedFiles() images: UploadedImageFile[],
     @Req() req: any,
   ) {
     return this.productsService.update(id, updateProductDto, images, req);

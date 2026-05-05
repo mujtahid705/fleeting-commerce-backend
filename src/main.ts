@@ -22,9 +22,13 @@ async function bootstrap() {
         /^https?:\/\/127\.0\.0\.1:\d+$/,
         /^https?:\/\/.+\.localhost:\d+$/,
         /^https?:\/\/.+\.127\.0\.0\.1:\d+$/,
+
         /^https:\/\/fleetingcommerce\.dev$/,
-        /^https:\/\/fleetingcommerce\.vercel\.app$/,
+        /^https:\/\/www\.fleetingcommerce\.dev$/,
         /^https:\/\/.+\.fleetingcommerce\.dev$/,
+
+        /^https:\/\/fleetingcommerce\.vercel\.app$/,
+        /^https:\/\/.+\.vercel\.app$/,
       ];
 
       const normalizedOrigin = origin.replace(/\/$/, '');

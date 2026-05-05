@@ -10,24 +10,18 @@ import {
   Req,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
   UploadedFiles,
   ParseUUIDPipe,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import {
-  FileInterceptor,
-  FileFieldsInterceptor,
-} from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { TenantBrandService } from './tenant-brand.service';
 import { CreateTenantBrandDto, UpdateTenantBrandDto } from './dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+import { FileUploadService } from 'src/common/services/file-upload.service';
 
 @Controller('tenant-brand')
 export class TenantBrandController {
@@ -70,23 +64,10 @@ export class TenantBrandController {
         { name: 'heroImage', maxCount: 1 },
         { name: 'exclusiveImages', maxCount: 20 },
       ],
-      {
-        storage: diskStorage({
-          destination: './uploads/brands',
-          filename: (req, file, cb) => {
-            const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-            cb(null, uniqueName);
-          },
-        }),
-        fileFilter: (req, file, cb) => {
-          if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
-            cb(null, true);
-          } else {
-            cb(new Error('Only image files are allowed!'), false);
-          }
-        },
-        limits: { fileSize: 2 * 1024 * 1024 },
-      },
+      FileUploadService.createMulterConfig({
+        allowedSvg: true,
+        fileSize: 2 * 1024 * 1024,
+      }),
     ),
   )
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -113,23 +94,10 @@ export class TenantBrandController {
         { name: 'heroImage', maxCount: 1 },
         { name: 'exclusiveImages', maxCount: 20 },
       ],
-      {
-        storage: diskStorage({
-          destination: './uploads/brands',
-          filename: (req, file, cb) => {
-            const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-            cb(null, uniqueName);
-          },
-        }),
-        fileFilter: (req, file, cb) => {
-          if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg\+xml)$/)) {
-            cb(null, true);
-          } else {
-            cb(new Error('Only image files are allowed!'), false);
-          }
-        },
-        limits: { fileSize: 2 * 1024 * 1024 },
-      },
+      FileUploadService.createMulterConfig({
+        allowedSvg: true,
+        fileSize: 2 * 1024 * 1024,
+      }),
     ),
   )
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

@@ -8,7 +8,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Status } from 'generated/prisma';
+import { Status } from '@prisma/client';
 
 class OrderItemDto {
   @IsString()
