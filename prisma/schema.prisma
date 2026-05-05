@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -161,14 +161,15 @@ model Product {
 }
 
 model ProductImage {
-  id        String   @id @default(uuid())
-  productId String
-  imageUrl  String
-  order     Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  productId          String
+  imageUrl           String
+  cloudinaryPublicId String?
+  order              Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
@@ -281,6 +282,7 @@ model TenantBrand {
   id                 String   @id @default(uuid())
   tenantId           String   @unique
   logoUrl            String?
+  logoPublicId       String?
   tagline            String?
   description        String?
   theme              Int      @default(1)

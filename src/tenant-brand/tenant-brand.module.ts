@@ -1,22 +1,13 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TenantBrandController } from './tenant-brand.controller';
 import { TenantBrandService } from './tenant-brand.service';
 import { DatabaseModule } from 'src/database/database.module';
-import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { CommonModule } from 'src/common/common.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, CommonModule],
   controllers: [TenantBrandController],
   providers: [TenantBrandService],
   exports: [TenantBrandService],
 })
-export class TenantBrandModule implements OnModuleInit {
-  onModuleInit() {
-    // Ensure upload directory exists
-    const uploadPath = join(process.cwd(), 'uploads', 'brands');
-    if (!existsSync(uploadPath)) {
-      mkdirSync(uploadPath, { recursive: true });
-    }
-  }
-}
+export class TenantBrandModule {}

@@ -8,7 +8,7 @@ import {
 import { DatabaseService } from 'src/database/database.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { Status } from 'generated/prisma';
+import { Status } from '@prisma/client';
 import { DiscountsService } from 'src/discounts/discounts.service';
 import { decrementInventoryForOrder } from 'src/orders/order-inventory.util';
 
