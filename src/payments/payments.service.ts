@@ -218,6 +218,14 @@ export class PaymentsService {
     validationId: string,
     rawResponse: any,
   ) {
+    if (!transactionId) {
+      throw new BadRequestException('Missing transaction ID');
+    }
+
+    if (!validationId) {
+      throw new BadRequestException('Missing validation ID');
+    }
+
     this.logger.log(
       `Payment success callback received: ${transactionId}, val_id: ${validationId}`,
     );
@@ -300,6 +308,10 @@ export class PaymentsService {
 
   // Handle payment failure callback
   async handlePaymentFailed(transactionId: string, rawResponse: any) {
+    if (!transactionId) {
+      throw new BadRequestException('Missing transaction ID');
+    }
+
     const payment = await this.databaseService.payment.findUnique({
       where: { transactionId },
       include: { subscription: { include: { plan: true } } },

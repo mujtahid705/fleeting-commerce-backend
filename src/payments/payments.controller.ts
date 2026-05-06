@@ -1,4 +1,5 @@
 import {
+  All,
   Controller,
   Get,
   Post,
@@ -30,6 +31,21 @@ export class PaymentsController {
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
   }
 
+  private buildCallbackPayload(body: any, query: any) {
+    return {
+      ...(query ?? {}),
+      ...(body ?? {}),
+    };
+  }
+
+  private redirectPaymentError(res: Response, error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    return res.redirect(
+      `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
+    );
+  }
+
   // Initiate payment
   @Post('initiate')
   @UseGuards(JwtGuard, RolesGuard)
@@ -39,59 +55,66 @@ export class PaymentsController {
   }
 
   // SSLCommerz success callback
-  @Post('callback/success')
-  async handleSuccess(@Body() body: any, @Res() res: Response) {
+  @All('callback/success')
+  async handleSuccess(
+    @Body() body: any,
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
     try {
-      const { tran_id, val_id } = body;
-      await this.paymentsService.handlePaymentSuccess(tran_id, val_id, body);
+      const payload = this.buildCallbackPayload(body, query);
+      const { tran_id, val_id } = payload;
+      await this.paymentsService.handlePaymentSuccess(
+        tran_id,
+        val_id,
+        payload,
+      );
       return res.redirect(
         `${this.frontendUrl}/payment/success?transactionId=${tran_id}`,
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
-      );
+      return this.redirectPaymentError(res, error);
     }
   }
 
   // SSLCommerz fail callback
-  @Post('callback/fail')
-  async handleFail(@Body() body: any, @Res() res: Response) {
+  @All('callback/fail')
+  async handleFail(
+    @Body() body: any,
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
     try {
-      const { tran_id } = body;
-      await this.paymentsService.handlePaymentFailed(tran_id, body);
+      const payload = this.buildCallbackPayload(body, query);
+      const { tran_id } = payload;
+      await this.paymentsService.handlePaymentFailed(tran_id, payload);
       return res.redirect(
         `${this.frontendUrl}/payment/failed?transactionId=${tran_id}`,
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
-      );
+      return this.redirectPaymentError(res, error);
     }
   }
 
   // SSLCommerz cancel callback
-  @Post('callback/cancel')
-  async handleCancel(@Body() body: any, @Res() res: Response) {
+  @All('callback/cancel')
+  async handleCancel(
+    @Body() body: any,
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
     try {
-      const { tran_id } = body;
+      const payload = this.buildCallbackPayload(body, query);
+      const { tran_id } = payload;
       await this.paymentsService.handlePaymentFailed(tran_id, {
-        ...body,
+        ...payload,
         cancelled: true,
       });
       return res.redirect(
         `${this.frontendUrl}/payment/cancelled?transactionId=${tran_id}`,
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return res.redirect(
-        `${this.frontendUrl}/payment/error?message=${encodeURIComponent(errorMessage)}`,
-      );
+      return this.redirectPaymentError(res, error);
     }
   }
 

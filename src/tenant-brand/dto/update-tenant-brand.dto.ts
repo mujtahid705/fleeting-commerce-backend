@@ -50,4 +50,12 @@ export class UpdateTenantBrandDto {
   @IsOptional()
   @IsString()
   footer?: string;
+
+  @IsOptional()
+  @IsString()
+  aboutPage?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPage?: string;
 }
