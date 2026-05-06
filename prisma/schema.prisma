@@ -82,6 +82,7 @@ model Order {
   tenant             Tenant      @relation(fields: [tenantId], references: [id])
   user               User        @relation(fields: [userId], references: [id])
   order_items        OrderItem[]
+  reviews            Review[]
 }
 
 model OrderItem {
@@ -149,8 +150,11 @@ model Product {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   totalSold     Int            @default(0)
+  averageRating Float          @default(0)
+  reviewCount   Int            @default(0)
   inventory     Inventory?
   order_items   OrderItem[]
+  reviews       Review[]
   category      Category       @relation(fields: [categoryId], references: [id])
   subCategory   SubCategory?   @relation(fields: [subCategoryId], references: [id])
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
@@ -219,6 +223,7 @@ model Tenant {
   orders        Order[]
   payments      Payment[]
   products      Product[]
+  reviews       Review[]
   coupons       Coupon[]
   saleDiscounts SaleDiscount[]
   subscription  Subscription?
@@ -312,9 +317,34 @@ model User {
   updatedAt   DateTime    @updatedAt
   inventories Inventory[]
   orders      Order[]
+  reviews     Review[]
   tenant      Tenant?     @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  tenantId  String
+  productId String
+  userId    String
+  orderId   Int
+  rating    Int
+  comment   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId],  references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId],    references: [id])
+  order   Order   @relation(fields: [orderId],   references: [id])
+
+  @@unique([productId, userId, orderId])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([userId])
+  @@index([productId, isActive])
 }
 
 enum BillingInterval {
