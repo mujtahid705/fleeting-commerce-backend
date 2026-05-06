@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -23,6 +24,11 @@ import {
   CreateOrderDto,
   UpdateOrderStatusDto,
 } from './dto/storefront-order.dto';
+import {
+  CreateReviewDto,
+  ReviewPaginationQueryDto,
+  UpdateReviewDto,
+} from './dto/storefront-review.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 
 @Controller('storefront')
@@ -156,5 +162,74 @@ export class StorefrontController {
       req.user.id,
       updateStatusDto.status,
     );
+  }
+
+  // Reviews — public
+  @Get('products/:id/reviews')
+  async getProductReviews(
+    @Domain() domain: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) productId: string,
+    @Query() query: ReviewPaginationQueryDto,
+  ) {
+    return this.storefrontService.getProductReviews(
+      domain,
+      productId,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
+  }
+
+  // Reviews — customer (JWT)
+  @Get('reviews/me')
+  @UseGuards(JwtGuard)
+  async getMyReviews(
+    @Domain() domain: string,
+    @Query() query: ReviewPaginationQueryDto,
+    @Req() req: any,
+  ) {
+    return this.storefrontService.getMyReviews(
+      domain,
+      req.user.id,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
+  }
+
+  @Post('reviews')
+  @UseGuards(JwtGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async createReview(
+    @Domain() domain: string,
+    @Body() dto: CreateReviewDto,
+    @Req() req: any,
+  ) {
+    return this.storefrontService.createReview(domain, req.user.id, dto);
+  }
+
+  @Patch('reviews/:id')
+  @UseGuards(JwtGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateReview(
+    @Domain() domain: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) reviewId: string,
+    @Body() dto: UpdateReviewDto,
+    @Req() req: any,
+  ) {
+    return this.storefrontService.updateOwnReview(
+      domain,
+      reviewId,
+      req.user.id,
+      dto,
+    );
+  }
+
+  @Delete('reviews/:id')
+  @UseGuards(JwtGuard)
+  async deleteReview(
+    @Domain() domain: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) reviewId: string,
+    @Req() req: any,
+  ) {
+    return this.storefrontService.deleteOwnReview(domain, reviewId, req.user.id);
   }
 }

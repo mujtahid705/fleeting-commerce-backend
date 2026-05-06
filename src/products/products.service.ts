@@ -70,12 +70,19 @@ export class ProductsService {
 
       if (!product) throw new NotFoundException('Product not found');
 
-      const [data] = await this.discountsService.decorateProductsWithPricing(
+      const [decorated] = await this.discountsService.decorateProductsWithPricing(
         req.user?.tenantId,
         [product],
       );
 
-      return { message: 'Product fetched successfully', data };
+      const recentReviews = await this.databaseService.review.findMany({
+        where: { productId: id, tenantId: req.user?.tenantId, isActive: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
+
+      return { message: 'Product fetched successfully', data: { ...decorated, recentReviews } };
     } catch (err) {
       // Re-throw NotFound; wrap Prisma-style errors to avoid leaking internals
       if (err instanceof NotFoundException) throw err;

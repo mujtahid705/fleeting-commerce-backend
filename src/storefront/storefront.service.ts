@@ -4,6 +4,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +12,11 @@ import * as bcrypt from 'bcrypt';
 import { Status } from '@prisma/client';
 import { DiscountsService } from 'src/discounts/discounts.service';
 import { decrementInventoryForOrder } from 'src/orders/order-inventory.util';
+import { recomputeProductRating } from 'src/reviews/review-aggregate.util';
+import {
+  CreateReviewDto,
+  UpdateReviewDto,
+} from './dto/storefront-review.dto';
 
 @Injectable()
 export class StorefrontService {
@@ -233,14 +239,21 @@ export class StorefrontService {
         quantity: inventoryItem.quantity,
       },
     };
-    const [data] = await this.discountsService.decorateProductsWithPricing(
+    const [decorated] = await this.discountsService.decorateProductsWithPricing(
       tenantId,
       [product],
     );
 
+    const recentReviews = await this.databaseService.review.findMany({
+      where: { productId, tenantId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: { user: { select: { id: true, name: true } } },
+    });
+
     return {
       message: 'Product fetched successfully',
-      data,
+      data: { ...decorated, recentReviews },
     };
   }
 
@@ -533,6 +546,173 @@ export class StorefrontService {
     return {
       message: 'Order status updated successfully',
       data: updatedOrder,
+    };
+  }
+
+  // Reviews
+  async createReview(domain: string, userId: string, dto: CreateReviewDto) {
+    const tenantId = await this.getTenantIdByDomain(domain);
+
+    const orderItem = await this.databaseService.orderItem.findFirst({
+      where: {
+        productId: dto.productId,
+        orderId: dto.orderId,
+        order: { userId, tenantId, status: 'delivered' },
+      },
+    });
+
+    if (!orderItem) {
+      throw new ForbiddenException(
+        'You can only review products from delivered orders',
+      );
+    }
+
+    try {
+      const review = await this.databaseService.review.create({
+        data: {
+          tenantId,
+          productId: dto.productId,
+          userId,
+          orderId: dto.orderId,
+          rating: dto.rating,
+          comment: dto.comment,
+        },
+      });
+
+      await recomputeProductRating(this.databaseService, dto.productId);
+
+      return { message: 'Review created successfully', data: review };
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ConflictException(
+          'You already reviewed this product for this order',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async updateOwnReview(
+    domain: string,
+    reviewId: string,
+    userId: string,
+    dto: UpdateReviewDto,
+  ) {
+    const tenantId = await this.getTenantIdByDomain(domain);
+
+    const review = await this.databaseService.review.findFirst({
+      where: { id: reviewId, userId, tenantId },
+    });
+
+    if (!review) throw new NotFoundException('Review not found');
+
+    const updated = await this.databaseService.review.update({
+      where: { id: reviewId },
+      data: {
+        ...(dto.rating !== undefined && { rating: dto.rating }),
+        ...(dto.comment !== undefined && { comment: dto.comment }),
+      },
+    });
+
+    await recomputeProductRating(this.databaseService, review.productId);
+
+    return { message: 'Review updated successfully', data: updated };
+  }
+
+  async deleteOwnReview(domain: string, reviewId: string, userId: string) {
+    const tenantId = await this.getTenantIdByDomain(domain);
+
+    const review = await this.databaseService.review.findFirst({
+      where: { id: reviewId, userId, tenantId },
+    });
+
+    if (!review) throw new NotFoundException('Review not found');
+
+    await this.databaseService.review.delete({ where: { id: reviewId } });
+
+    await recomputeProductRating(this.databaseService, review.productId);
+
+    return { message: 'Review deleted successfully', data: null };
+  }
+
+  async getProductReviews(
+    domain: string,
+    productId: string,
+    page: number,
+    limit: number,
+  ) {
+    const tenantId = await this.getTenantIdByDomain(domain);
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.databaseService.review.findMany({
+        where: { productId, tenantId, isActive: true },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, name: true } } },
+      }),
+      this.databaseService.review.count({
+        where: { productId, tenantId, isActive: true },
+      }),
+    ]);
+
+    return {
+      message: 'Reviews fetched successfully',
+      data: {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getMyReviews(
+    domain: string,
+    userId: string,
+    page: number,
+    limit: number,
+  ) {
+    const tenantId = await this.getTenantIdByDomain(domain);
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.databaseService.review.findMany({
+        where: { userId, tenantId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          product: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              images: {
+                where: { isActive: true },
+                orderBy: { order: 'asc' },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
+      this.databaseService.review.count({ where: { userId, tenantId } }),
+    ]);
+
+    return {
+      message: 'Your reviews fetched successfully',
+      data: {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 }

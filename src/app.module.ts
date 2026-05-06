@@ -18,6 +18,7 @@ import { MailModule } from './mail/mail.module';
 import { TenantBrandModule } from './tenant-brand/tenant-brand.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { DiscountsModule } from './discounts/discounts.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -43,6 +44,7 @@ import { HealthController } from './health.controller';
     PaymentsModule,
     DiscountsModule,
     StorefrontModule,
+    ReviewsModule,
   ],
   controllers: [HealthController],
   providers: [],
