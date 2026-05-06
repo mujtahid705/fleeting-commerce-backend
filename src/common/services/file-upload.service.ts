@@ -18,7 +18,11 @@ export type CloudinaryImageVariant =
   | 'product'
   | 'brand-logo'
   | 'brand-hero'
-  | 'brand-exclusive';
+  | 'brand-exclusive'
+  | 'brand-about-hero'
+  | 'brand-about-story'
+  | 'brand-about-team'
+  | 'brand-contact-map';
 
 export interface UploadedCloudinaryImage {
   secureUrl: string;
@@ -152,6 +156,10 @@ export class FileUploadService {
       'brand-logo': 600,
       'brand-hero': 2400,
       'brand-exclusive': 1200,
+      'brand-about-hero': 2400,
+      'brand-about-story': 1400,
+      'brand-about-team': 900,
+      'brand-contact-map': 1600,
     };
 
     return cloudinary.url(publicId, {

@@ -294,6 +294,8 @@ model TenantBrand {
   exclusiveSection   Json?
   featuredCategories Json?
   footer             Json?
+  aboutPage          Json?
+  contactPage        Json?
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 

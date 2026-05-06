@@ -63,10 +63,14 @@ export class TenantBrandController {
         { name: 'logo', maxCount: 1 },
         { name: 'heroImage', maxCount: 1 },
         { name: 'exclusiveImages', maxCount: 20 },
+        { name: 'aboutHeroImage', maxCount: 1 },
+        { name: 'aboutStoryImage', maxCount: 1 },
+        { name: 'aboutTeamImages', maxCount: 8 },
+        { name: 'contactMapImage', maxCount: 1 },
       ],
       FileUploadService.createMulterConfig({
         allowedSvg: true,
-        fileSize: 2 * 1024 * 1024,
+        fileSize: 5 * 1024 * 1024,
       }),
     ),
   )
@@ -93,10 +97,14 @@ export class TenantBrandController {
         { name: 'logo', maxCount: 1 },
         { name: 'heroImage', maxCount: 1 },
         { name: 'exclusiveImages', maxCount: 20 },
+        { name: 'aboutHeroImage', maxCount: 1 },
+        { name: 'aboutStoryImage', maxCount: 1 },
+        { name: 'aboutTeamImages', maxCount: 8 },
+        { name: 'contactMapImage', maxCount: 1 },
       ],
       FileUploadService.createMulterConfig({
         allowedSvg: true,
-        fileSize: 2 * 1024 * 1024,
+        fileSize: 5 * 1024 * 1024,
       }),
     ),
   )
