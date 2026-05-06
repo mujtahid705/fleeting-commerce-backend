@@ -5,8 +5,26 @@ import {
   MaxLength,
   Min,
   Max,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+
+const toOptionalInt = ({ value, obj }: { value: unknown; obj?: any }) => {
+  const rawValue = obj?.theme ?? value;
+
+  if (
+    rawValue === undefined ||
+    rawValue === null ||
+    rawValue === '' ||
+    rawValue === 'undefined' ||
+    rawValue === 'null'
+  ) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  return Number.isFinite(parsedValue) ? parsedValue : undefined;
+};
 
 export class UpdateTenantBrandDto {
   @IsOptional()
@@ -25,7 +43,8 @@ export class UpdateTenantBrandDto {
   description?: string;
 
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toOptionalInt)
+  @ValidateIf((_, value) => Number.isFinite(value))
   @IsInt()
   @Min(1)
   @Max(100)

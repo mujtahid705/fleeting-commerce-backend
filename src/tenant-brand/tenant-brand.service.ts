@@ -696,6 +696,15 @@ export class TenantBrandService {
     return Boolean(files?.contactMapImage?.[0]);
   }
 
+  private normalizeTheme(theme: unknown) {
+    const parsedTheme =
+      typeof theme === 'number' ? theme : Number.parseInt(String(theme), 10);
+
+    return Number.isInteger(parsedTheme) && parsedTheme >= 1 && parsedTheme <= 100
+      ? parsedTheme
+      : undefined;
+  }
+
   /**
    * Process uploaded files and JSON data from form-data
    */
@@ -997,6 +1006,7 @@ export class TenantBrandService {
     }
     const processedData = processedFormData.data;
     uploadedPublicIds.push(...processedFormData.uploadedPublicIds);
+    const theme = this.normalizeTheme(createTenantBrandDto.theme);
     const aboutPage =
       processedData.aboutPage !== undefined
         ? this.deepMergeJson(existingBrand?.aboutPage, processedData.aboutPage)
@@ -1013,7 +1023,7 @@ export class TenantBrandService {
       domain: createTenantBrandDto.domain,
       tagline: createTenantBrandDto.tagline,
       description: createTenantBrandDto.description,
-      theme: createTenantBrandDto.theme ?? 1,
+      theme: theme ?? existingBrand?.theme ?? 1,
       hero: processedData.hero,
       browseCategories: processedData.browseCategories,
       exclusiveSection: processedData.exclusiveSection,
@@ -1142,8 +1152,9 @@ export class TenantBrandService {
     if (updateTenantBrandDto.description !== undefined) {
       updateData.description = updateTenantBrandDto.description;
     }
-    if (updateTenantBrandDto.theme !== undefined) {
-      updateData.theme = updateTenantBrandDto.theme;
+    const theme = this.normalizeTheme(updateTenantBrandDto.theme);
+    if (theme !== undefined) {
+      updateData.theme = theme;
     }
     if (processedData.hero !== undefined) {
       updateData.hero = processedData.hero;
