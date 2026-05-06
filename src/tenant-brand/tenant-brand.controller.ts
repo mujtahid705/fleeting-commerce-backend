@@ -12,8 +12,6 @@ import {
   UseInterceptors,
   UploadedFiles,
   ParseUUIDPipe,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { TenantBrandService } from './tenant-brand.service';
@@ -74,7 +72,6 @@ export class TenantBrandController {
       }),
     ),
   )
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   upsertBrand(
     @Body() createTenantBrandDto: CreateTenantBrandDto,
     @UploadedFiles() files: any,
@@ -108,7 +105,6 @@ export class TenantBrandController {
       }),
     ),
   )
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   updateBrand(
     @Body() updateTenantBrandDto: UpdateTenantBrandDto,
     @UploadedFiles() files: any,
