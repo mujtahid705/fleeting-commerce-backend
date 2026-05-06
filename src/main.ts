@@ -29,6 +29,9 @@ async function bootstrap() {
 
         /^https:\/\/fleetingcommerce\.vercel\.app$/,
         /^https:\/\/.+\.vercel\.app$/,
+
+        /^https:\/\/sandbox\.sslcommerz\.com$/,
+        /^https:\/\/securepay\.sslcommerz\.com$/,
       ];
 
       const normalizedOrigin = origin.replace(/\/$/, '');
